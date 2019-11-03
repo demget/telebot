@@ -34,6 +34,7 @@ func NewBot(pref Settings) (*Bot, error) {
 		URL:     pref.URL,
 		Updates: make(chan Update, pref.Updates),
 		Poller:  pref.Poller,
+		Content: pref.Content,
 
 		handlers: make(map[string]interface{}),
 		stop:     make(chan struct{}),
@@ -57,34 +58,12 @@ type Bot struct {
 	URL     string
 	Updates chan Update
 	Poller  Poller
+	*Content
 
 	handlers map[string]interface{}
 	reporter func(error)
 	stop     chan struct{}
 	client   *http.Client
-}
-
-// Settings represents a utility struct for passing certain
-// properties of a bot around and is required to make bots.
-type Settings struct {
-	// Telegram API Url
-	URL string
-
-	// Telegram token
-	Token string
-
-	// Updates channel capacity
-	Updates int // Default: 100
-
-	// Poller is the provider of Updates.
-	Poller Poller
-
-	// Reporter is a callback function that will get called
-	// on any panics recovered from endpoint handlers.
-	Reporter func(error)
-
-	// HTTP Client used to make requests to telegram api
-	Client *http.Client
 }
 
 // Update object represents an incoming update.
