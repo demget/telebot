@@ -24,7 +24,7 @@ func NewSettings(path, dir string) (Settings, error) {
 		return Settings{}, err
 	}
 
-	tmpl, err := template.New("data").ParseGlob("*.tmpl")
+	tmpl, err := template.New("data").ParseGlob(dir + "/*.tmpl")
 	if err != nil {
 		return Settings{}, err
 	}

@@ -43,7 +43,7 @@ func (c *Content) Text(key string, args ...interface{}) string {
 	}
 
 	var buf bytes.Buffer
-	if err := c.Templates.Execute(&buf, arg); err != nil {
+	if err := c.Templates.ExecuteTemplate(&buf, key+".tmpl", arg); err != nil {
 		c.debug(err)
 	}
 	return buf.String()
