@@ -80,6 +80,10 @@ func (pref *Settings) UnmarshalJSON(data []byte) error {
 		SettingsJSON
 		Webhook    *Webhook    `json:"webhook"`
 		LongPoller *LongPoller `json:"long_poller"`
+
+		Strings       map[string]string          `json:"strings"`
+		InlineButtons map[string]json.RawMessage `json:"inline_buttons"`
+		InlineResults map[string]json.RawMessage `json:"inline_results"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -93,5 +97,31 @@ func (pref *Settings) UnmarshalJSON(data []byte) error {
 		pref.Poller = aux.LongPoller
 	}
 
+	cont := &Content{
+		Strings:       template.New("strings").Funcs(TemplateFuncMap),
+		InlineButtons: template.New("inline_buttons").Funcs(TemplateFuncMap),
+		InlineResults: template.New("inline_results").Funcs(TemplateFuncMap),
+	}
+
+	for k, v := range aux.Strings {
+		_, err := cont.Strings.New(k).Parse(v)
+		if err != nil {
+			return err
+		}
+	}
+	for k, v := range aux.InlineButtons {
+		_, err := cont.InlineButtons.New(k).Parse(string(v))
+		if err != nil {
+			return err
+		}
+	}
+	for k, v := range aux.InlineResults {
+		_, err := cont.InlineResults.New(k).Parse(string(v))
+		if err != nil {
+			return err
+		}
+	}
+
+	pref.Content = cont
 	return nil
 }
