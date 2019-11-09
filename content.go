@@ -28,6 +28,9 @@ type Content struct {
 	InlineButtons   map[string]json.RawMessage `json:"inline_buttons"`
 	InlineKeyboards map[string][][]string      `json:"inline_keyboards"`
 
+	// InilineQuery result entities.
+	InlineResults map[string]json.RawMessage `json:"inline_results"`
+
 	// Templates stores all bot's messages – must be valid "text/template"
 	// templates with ".tmpl" ext. You should save it as separated files.
 	// This field fills automatically when you create settings via NewSettings.
@@ -91,7 +94,7 @@ func (c *Content) Markup(key string) *ReplyMarkup {
 	return markup
 }
 
-// InlineButton returns InlineButton with formatted text from InlineButtons map.
+// InlineButton returns formatted InlineButton.
 // It uses "text/template" parser.
 func (c *Content) InlineButton(key string, args ...interface{}) *InlineButton {
 	raw, ok := c.InlineButtons[key]
@@ -135,6 +138,103 @@ func (c *Content) InlineMarkup(key string, args ...interface{}) *ReplyMarkup {
 	}
 
 	return markup
+}
+
+// InlineResult returns formatted inline query result.
+// It uses "text/template" parser.
+func (c *Content) InlineResult(key string, args ...interface{}) Result {
+	raw, ok := c.InlineResults[key]
+	if !ok {
+		return nil
+	}
+
+	if len(args) > 0 {
+		raw = []byte(c.executeTemplate(string(raw), args[0]))
+	}
+
+	var t struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &t); err != nil {
+		panic(err)
+	}
+
+	switch t.Type {
+	case "article":
+		var r ArticleResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "audio":
+		var r AudioResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "contact":
+		var r ContactResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "document":
+		var r DocumentResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "gif":
+		var r GifResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "location":
+		var r LocationResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "mpeg4_gif":
+		var r Mpeg4GifResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "photo":
+		var r PhotoResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "venue":
+		var r VenueResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "video":
+		var r VideoResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "voice":
+		var r VoiceResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	case "sticker":
+		var r StickerResult
+		if err := json.Unmarshal(raw, &r); err != nil {
+			panic(err)
+		}
+		return &r
+	}
+
+	return nil
 }
 
 func (c *Content) executeTemplate(str string, arg interface{}) string {
