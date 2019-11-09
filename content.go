@@ -157,6 +157,7 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 	}
 	if err := json.Unmarshal(raw, &t); err != nil {
 		c.debug(err)
+		return nil
 	}
 
 	switch t.Type {
@@ -164,72 +165,84 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 		var r ArticleResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "audio":
 		var r AudioResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "contact":
 		var r ContactResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "document":
 		var r DocumentResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "gif":
 		var r GifResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "location":
 		var r LocationResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "mpeg4_gif":
 		var r Mpeg4GifResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "photo":
 		var r PhotoResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "venue":
 		var r VenueResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "video":
 		var r VideoResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "voice":
 		var r VoiceResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	case "sticker":
 		var r StickerResult
 		if err := json.Unmarshal(raw, &r); err != nil {
 			c.debug(err)
+			break
 		}
 		return &r
 	}
@@ -238,7 +251,9 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 }
 
 func (c *Content) executeTemplate(str string, arg interface{}) string {
-	tmpl, err := template.New("").Parse(str)
+	tmpl, err := template.New("").
+		Funcs(TemplateFuncMap).
+		Parse(str)
 	if err != nil {
 		c.debug(err)
 		return ""

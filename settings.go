@@ -4,8 +4,20 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"text/template"
 )
+
+// TemplateFuncMap is pre-defined functions that can be used in your templates.
+var TemplateFuncMap = template.FuncMap{
+	"add": func(a, b int) int { return a + b },
+	"sub": func(a, b int) int { return a - b },
+
+	// Escapes double-quotes. Useful in json templates.
+	"jsq": func(s string) string {
+		return strings.ReplaceAll(s, `"`, `\"`)
+	},
+}
 
 // NewSettings does try to load Settings from your json config file.
 // 	- path is config path
@@ -24,7 +36,9 @@ func NewSettings(path, dir string) (Settings, error) {
 		return Settings{}, err
 	}
 
-	tmpl, err := template.New("data").ParseGlob(dir + "/*.tmpl")
+	tmpl, err := template.New("data").
+		Funcs(TemplateFuncMap).
+		ParseGlob(dir + "/*.tmpl")
 	if err != nil {
 		return Settings{}, err
 	}
