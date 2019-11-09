@@ -108,7 +108,7 @@ func (c *Content) InlineButton(key string, args ...interface{}) *InlineButton {
 
 	var btn InlineButton
 	if err := json.Unmarshal(raw, &btn); err != nil {
-		panic(err)
+		c.debug(err)
 	}
 	return &btn
 }
@@ -156,80 +156,80 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(raw, &t); err != nil {
-		panic(err)
+		c.debug(err)
 	}
 
 	switch t.Type {
 	case "article":
 		var r ArticleResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "audio":
 		var r AudioResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "contact":
 		var r ContactResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "document":
 		var r DocumentResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "gif":
 		var r GifResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "location":
 		var r LocationResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "mpeg4_gif":
 		var r Mpeg4GifResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "photo":
 		var r PhotoResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "venue":
 		var r VenueResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "video":
 		var r VideoResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "voice":
 		var r VoiceResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	case "sticker":
 		var r StickerResult
 		if err := json.Unmarshal(raw, &r); err != nil {
-			panic(err)
+			c.debug(err)
 		}
 		return &r
 	}
