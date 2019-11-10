@@ -37,6 +37,12 @@ type Content struct {
 	Templates *template.Template `json:"-"`
 }
 
+// Vars parses the raw JSON vars and stores the result
+// in the value pointed to by v.
+func (c *Content) Vars(v interface{}) error {
+	return json.Unmarshal(c.RawVars, v)
+}
+
 // Text returns executed template from Templates map.
 // It uses "text/template" parser.
 func (c *Content) Text(key string, args ...interface{}) string {
