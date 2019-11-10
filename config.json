@@ -1,0 +1,56 @@
+{
+    "version": "1.0.0",
+
+    "long_poller": {},
+
+    "vars": {
+        "custom": "settings"
+    },
+    
+    "strings": {
+        "error": "Error! Try again later"
+    },
+
+    "buttons": {
+        "help": "❓ Help",
+        "settings": "⚙️ Settings"
+    },
+
+    "keyboards": {
+        "menu": [["help", "settings"]]
+    },
+
+    "inline_buttons": {
+        "refresh": {
+            "unique": "refresh",
+            "callback_data": "{{.ID}}",
+            "text": "🔄 Refresh"
+        },
+        "remove": {
+            "unique": "remove",
+            "callback_data": "{{.ID}}",
+            "text": "🛑 Remove"
+        },
+        "search": {
+            "text": "🔎 Search",
+            "switch_inline_query_current_chat": ""
+        }
+    },
+    
+    "inline_keyboards": {
+        "item": [["refresh"], ["remove"]],
+        "search": [["search"]]
+    },
+
+    "inline_results": {
+        "entry": {
+            "type": "article",
+            "id": "{{.ID}}",
+            "url": "{{.URL}}",
+            "hide_url": true,
+            "title": "{{jsq .Title}}",
+            "thumb_url": "{{.Thumbnail.URL}}",
+            "message_text": "*{{.Title}}*: {{.URL}}"
+        }
+    }
+}
