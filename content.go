@@ -267,22 +267,6 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 	return nil
 }
 
-func (c *Content) executeTemplate(str string, arg interface{}) string {
-	tmpl, err := template.New("").
-		Funcs(TemplateFuncMap).
-		Parse(str)
-	if err != nil {
-		c.debug(err)
-		return ""
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, arg); err != nil {
-		c.debug(err)
-	}
-	return buf.String()
-}
-
 func (c *Content) debug(err error) {
 	// it's better to implement global package logger
 	err = errors.WithStack(err)
