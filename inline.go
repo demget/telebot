@@ -66,7 +66,7 @@ type Result interface {
 	ResultID() string
 	SetResultID(string)
 	SetContent(InputMessageContent)
-	SetReplyMarkup([][]InlineButton)
+	SetReplyMarkup(*ReplyMarkup)
 	Process()
 }
 
