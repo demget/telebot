@@ -28,3 +28,13 @@ type StoredMessage struct {
 func (x StoredMessage) MessageSig() (string, int64) {
 	return x.MessageID, x.ChatID
 }
+
+// InlineMessage represents a message sent by inline mode.
+// Use it to edit message by its inline_message_id.
+type InlineMessage struct {
+	ID string `json:"inline_message_id"`
+}
+
+func (x InlineMessage) MessageSig() (string, int64) {
+	return x.ID, 0
+}
