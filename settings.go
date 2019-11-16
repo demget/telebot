@@ -15,7 +15,9 @@ var TemplateFuncMap = template.FuncMap{
 
 	// Escapes double-quotes. Useful in json templates.
 	"jsq": func(s string) string {
-		return strings.ReplaceAll(s, `"`, `\"`)
+		s = strings.ReplaceAll(s, `\`, `\\`)
+		s = strings.ReplaceAll(s, `"`, `\"`)
+		return s
 	},
 }
 
