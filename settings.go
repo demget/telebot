@@ -19,6 +19,10 @@ var TemplateFuncMap = template.FuncMap{
 		s = strings.ReplaceAll(s, `"`, `\"`)
 		return s
 	},
+
+	// String functions
+	"title":  strings.ToTitle,
+	"repeat": strings.Repeat,
 }
 
 // NewSettings does try to load Settings from your json config file.
