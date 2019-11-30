@@ -1,4 +1,4 @@
-module gopkg.in/demget/telebot
+module github.com/demget/telebot
 
 go 1.11
 
