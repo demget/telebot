@@ -13,28 +13,28 @@ package main
 import tb "github.com/demget/telebot"
 
 func main() {
-    // "bot.json" is your config file
-    // "data" is your texts directory
-    pref, err := tb.NewSettings("bot.json", "data")
-    if err != nil {
-        log.Fatalln(err)
-    }
+	// "bot.json" is your config file
+	// "data" is your texts directory
+	pref, err := tb.NewSettings("bot.json", "data")
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-    // you also can save token in bot.json
-    pref.Token = os.Getenv("TOKEN") 
-    pref.Reporter = report
+	// you also can save token in bot.json
+	pref.Token = os.Getenv("TOKEN") 
+	pref.Reporter = report
 
-    b, err := tb.NewBot(pref)
-    if err != nil {
-        log.Fatalln(err)
-    }
+	b, err := tb.NewBot(pref)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-    b.Handle("/start", hander.OnStart)
-    b.Handle("/item", hander.OnItem)
-    b.Handle(b.InlineButton("refresh"), hander.OnRefresh)
-    b.Handle(b.InlineButton("remove"), hander.OnRemove)
+	b.Handle("/start", hander.OnStart)
+	b.Handle("/item", hander.OnItem)
+	b.Handle(b.InlineButton("refresh"), hander.OnRefresh)
+	b.Handle(b.InlineButton("remove"), hander.OnRemove)
 
-    b.Start()
+	b.Start()
 }
 ```
 
@@ -55,103 +55,101 @@ func OnStart(m *tb.Message) {
 ## Vars
 ```json
 {
-    "vars": {
-        "secret": "qz_BuGo2",
-        "admins": [],
-        "limits": {
-            "max_requests_per_user": 20
-        }
-    },
+	"vars": {
+		"secret": "qz_BuGo2",
+		"admins": [],
+		"limits": {
+			"max_requests_per_user": 20
+		}
+	},
 }
 ```
 ```go
 package app
 
 type Config struct {
-    Secret string `json:"secret"`
-    Admins []int  `json:"admins"`
-    Limits struct {
-        MaxRequestsPerUser int `json:"max_requests_per_user"`
-        // ...
-    }
+	Secret string `json:"secret"`
+	Admins []int  `json:"admins"`
+	Limits struct {
+		MaxRequestsPerUser int `json:"max_requests_per_user"`
+		// ...
+	}
 }
 ```
 ```go
 var conf app.Config
 if err := b.Vars(&conf); err != nil {
-    log.Fatalln(err)
+	log.Fatalln(err)
 }
 
 // now you can use your variables:
-    conf.Secret
-    conf.Admins
-    conf.Limits
+	conf.Secret
+	conf.Admins
+	conf.Limits
 ```
 
 ## Reply keyboards
 ```json
 {
-    "buttons": {
-        "help": "❓ Help",
-        "settings": "⚙️ Settings"
-    },
-    "keyboards": {
-        "menu": [["help", "settings"]]
-    },
+	"buttons": {
+		"help": "❓ Help",
+		"settings": "⚙️ Settings"
+	},
+	"keyboards": {
+		"menu": [["help", "settings"]]
+	},
 }
 ```
 ```go
 func OnStart(m *tb.Message) {
-    b.Send(m.Sender, 
-        b.Text("hello", m.Sender), 
-        b.Markup("menu"),
-        tb.ModeMarkdown)
+	b.Send(m.Sender, 
+		b.Text("hello", m.Sender), 
+		b.Markup("menu"),
+		tb.ModeMarkdown)
 }
 ```
 
-## Inline keyboards + strings
+## Inline keyboards + Strings
 ```json
 {
-    "strings": {
-        "error": "Error! Try again later"
-    },
-    "inline_buttons": {
-        "refresh": {
-            "unique": "refresh",
-            "callback_data": "{{.ID}}",
-            "text": "🔄 Refresh"
-        },
-        "remove": {
-            "unique": "remove",
-            "callback_data": "{{.ID}}",
-            "text": "🛑 Remove"
-        }
-    },
-    "inline_keyboards": {
-        "item": [["refresh"], ["remove"]],
-    },
+	"strings": {
+		"removed": "Removed successfully!"
+	},
+	"inline_buttons": {
+		"refresh": {
+			"unique": "refresh",
+			"callback_data": "{{.ID}}",
+			"text": "🔄 Refresh"
+		},
+		"remove": {
+			"unique": "remove",
+			"callback_data": "{{.ID}}",
+			"text": "🛑 Remove"
+		}
+	},
+	"inline_keyboards": {
+		"item": [["refresh"], ["remove"]],
+	},
 }
 ```
 ```go
 package handler
 
 func OnItem(m *tb.Message) {
-    b.Send(m.Sender, 
-        b.Text("item", item), 
-        b.InlineMarkup("item", item),
-        tb.ModeMarkdown)
+	b.Send(m.Sender, 
+		b.Text("item", item), 
+		b.InlineMarkup("item", item),
+		tb.ModeMarkdown)
 }
 
 func OnRefresh(c *tb.Callback) {
-    /* refresh */
-    b.Respond(c)
+	/* refresh */
+	b.Respond(c)
 }
 
 func OnRemove(c *tb.Callback) {
-    /* remove */
-    if err != nil {
-        b.Respond(c, &tb.CallbackResponse{Text: b.String("error")})
-    }
+	/* remove */
+	b.Respond(c, &tb.CallbackResponse{Text: b.String("removed")})
 }
 ```
 
@@ -161,3 +159,26 @@ b.Handle("/item", hander.OnItem)
 b.Handle(b.InlineButton("refresh"), hander.OnRefresh)
 b.Handle(b.InlineButton("remove"), hander.OnRemove)
 ```
+
+## Additional and custom template functions
+
+There are some additional template functions which are accessible in any text template and config. Some simple things, that standard template package still not do. Check `settings.go` for all pre-defined functions. The list will be extended in the future.
+
+You can add your custom functions before creating bot instance like so:
+```go
+func init() {
+	tb.TemplateFuncMap["upper"] = strings.ToUpper
+
+	tb.TemplateFuncMap["name"] = func(s string) {
+		// your custom function
+	}
+}
+```
+
+**Examples:**
+
+> `{{add .N 4}}` → `9`
+
+> `{{sub .N 4}}` → `1`
+
+> ```{{jsq `Some \weird json-incompatible "title"`}}``` → ```Some \\weird json-incompatible \"title\"```
