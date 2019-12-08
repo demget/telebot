@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"text/template"
+
+	"github.com/ghodss/yaml"
 )
 
 // TemplateFuncMap is pre-defined functions that can be used in your templates.
@@ -33,7 +35,25 @@ func NewSettings(path, dir string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
+	return newSettings(data, dir)
+}
 
+// NewSettingsYAML does try to load Settings from your yaml config file.
+// 	- path is config path
+// 	- dir is templates dir
+func NewSettingsYAML(path, dir string) (Settings, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return Settings{}, err
+	}
+	data, err = yaml.YAMLToJSON(data)
+	if err != nil {
+		return Settings{}, err
+	}
+	return newSettings(data, dir)
+}
+
+func newSettings(data []byte, dir string) (Settings, error) {
 	var pref Settings
 	if err := json.Unmarshal(data, &pref); err != nil {
 		return Settings{}, err
