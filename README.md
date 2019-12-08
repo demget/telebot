@@ -29,10 +29,10 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	b.Handle("/start", hander.OnStart)
-	b.Handle("/item", hander.OnItem)
-	b.Handle(b.InlineButton("refresh"), hander.OnRefresh)
-	b.Handle(b.InlineButton("remove"), hander.OnRemove)
+	b.Handle("/start", handler.OnStart)
+	b.Handle("/item", handler.OnItem)
+	b.Handle(b.InlineButton("refresh"), handler.OnRefresh)
+	b.Handle(b.InlineButton("remove"), handler.OnRemove)
 
 	b.Start()
 }
@@ -143,21 +143,66 @@ func OnItem(m *tb.Message) {
 }
 
 func OnRefresh(c *tb.Callback) {
+	defer b.Respond(c)
 	/* refresh */
-	b.Respond(c)
 }
 
 func OnRemove(c *tb.Callback) {
 	/* remove */
-	b.Respond(c, &tb.CallbackResponse{Text: b.String("removed")})
+
+	b.Respond(c, &tb.CallbackResponse{
+		Text:      b.String("removed"),
+		ShowAlert: true,
+	})
 }
 ```
 
 And very simple handling:
 ```go
-b.Handle("/item", hander.OnItem)
-b.Handle(b.InlineButton("refresh"), hander.OnRefresh)
-b.Handle(b.InlineButton("remove"), hander.OnRemove)
+b.Handle("/item", handler.OnItem)
+b.Handle(b.InlineButton("refresh"), handler.OnRefresh)
+b.Handle(b.InlineButton("remove"), handler.OnRemove)
+```
+
+## Inline query results
+```json
+{
+	"inline_results": {
+		"item": {
+			"type": "article",
+			"id": "{{.ID}}",
+			"title": "{{jsq .Title}}",
+			"description": "{{jsq .Description}}",
+			"thumb_url": "{{.ThumbnailURL}}"
+		}
+	},
+}
+```
+```go
+package handler
+
+func OnQuery(q *tb.OnQuery) {
+	var results tb.Results
+	for _, item := range items {
+		result := b.InlineResult("item", item)
+		if result == nil { // something went wrong
+			continue
+		}
+
+		result.SetContent(&tb.InputTextMessageContent{
+			Text:      b.Text("item", item),
+			ParseMode: tb.ModeHTML,
+		})
+
+		result.SetReplyMarkup(b.InlineMarkup("item", item))
+		results = append(results, result)
+	}
+
+	b.Answer(q, &tb.QueryResponse{
+		Results:   results,
+		CacheTime: 300,
+	})
+}
 ```
 
 ## Additional and custom template functions
