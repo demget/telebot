@@ -62,14 +62,16 @@ func newSettings(data []byte, dir string) (Settings, error) {
 		return Settings{}, err
 	}
 
-	tmpl, err := template.New("data").
-		Funcs(TemplateFuncMap).
-		ParseGlob(dir + "/*.tmpl")
-	if err != nil {
-		return Settings{}, err
+	if dir != "" {
+		tmpl, err := template.New("data").
+			Funcs(TemplateFuncMap).
+			ParseGlob(dir + "/*.tmpl")
+		if err != nil {
+			return Settings{}, err
+		}
+		pref.Content.Templates = tmpl
 	}
 
-	pref.Content.Templates = tmpl
 	return pref, nil
 }
 

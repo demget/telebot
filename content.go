@@ -46,6 +46,10 @@ func (c *Content) Vars(v interface{}) error {
 // Text returns executed template from Templates map.
 // It uses "text/template" parser.
 func (c *Content) Text(key string, args ...interface{}) string {
+	if c.Templates == nil {
+		return ""
+	}
+
 	var arg interface{}
 	if len(args) > 0 {
 		arg = args[0]
