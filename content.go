@@ -28,13 +28,14 @@ type Content struct {
 	InlineButtons   *template.Template    `json:"-"`
 	InlineKeyboards map[string][][]string `json:"inline_keyboards"`
 
-	// InilineQuery result entities.
+	// InlineQuery result entities.
 	InlineResults *template.Template `json:"-"`
 
-	// Templates stores all bot's messages – must be valid "text/template"
-	// templates with ".tmpl" ext. You should save it as separated files.
-	// This field fills automatically when you create settings via NewSettings.
-	Templates *template.Template `json:"-"`
+	// Templates can be implement their template engine.
+	// Now you can choose between two templates:
+	// TemplateText is implemented using the text/template library
+	// and TemplateHandlebars is using the aymerick/raymond library.
+	Templates Template `json:"-"`
 }
 
 // Vars parses the raw JSON vars and stores the result
@@ -44,7 +45,8 @@ func (c *Content) Vars(v interface{}) error {
 }
 
 // Text returns executed template from Templates map.
-// It uses "text/template" parser.
+// Parser should has been specified when initializing the settings.
+// If you have not specified a parser, then function return empty string.
 func (c *Content) Text(key string, args ...interface{}) string {
 	if c.Templates == nil {
 		return ""
@@ -56,7 +58,7 @@ func (c *Content) Text(key string, args ...interface{}) string {
 	}
 
 	var buf bytes.Buffer
-	if err := c.Templates.ExecuteTemplate(&buf, key+".tmpl", arg); err != nil {
+	if err := c.Templates.Execute(&buf, key, arg); err != nil {
 		c.debug(err)
 	}
 	return buf.String()
