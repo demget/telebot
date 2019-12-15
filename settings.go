@@ -29,19 +29,19 @@ var TemplateFuncMap = template.FuncMap{
 
 // NewSettings does try to load Settings from your json config file.
 // 	- path is config path
-// 	- dir is templates dir
-func NewSettings(path, dir string) (Settings, error) {
+// 	- tmplEngine is implementation of the templating engine
+func NewSettings(path string, tmplEngine Template) (Settings, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return Settings{}, err
 	}
-	return newSettings(data, dir)
+	return newSettings(data, tmplEngine)
 }
 
 // NewSettingsYAML does try to load Settings from your yaml config file.
 // 	- path is config path
-// 	- dir is templates dir
-func NewSettingsYAML(path, dir string) (Settings, error) {
+// 	- tmplEngine is implementation of the templating engine
+func NewSettingsYAML(path string, tmplEngine Template) (Settings, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return Settings{}, err
@@ -50,10 +50,10 @@ func NewSettingsYAML(path, dir string) (Settings, error) {
 	if err != nil {
 		return Settings{}, err
 	}
-	return newSettings(data, dir)
+	return newSettings(data, tmplEngine)
 }
 
-func newSettings(data []byte, dir string) (Settings, error) {
+func newSettings(data []byte, tmplEngine Template) (Settings, error) {
 	var pref Settings
 	if err := json.Unmarshal(data, &pref); err != nil {
 		return Settings{}, err
@@ -62,16 +62,10 @@ func newSettings(data []byte, dir string) (Settings, error) {
 		return Settings{}, err
 	}
 
-	if dir != "" {
-		tmpl, err := template.New("data").
-			Funcs(TemplateFuncMap).
-			ParseGlob(dir + "/*.tmpl")
-		if err != nil {
-			return Settings{}, err
-		}
-		pref.Content.Templates = tmpl
+	if err := tmplEngine.Implement(); err != nil {
+		return Settings{}, err
 	}
-
+	pref.Content.Templates = tmplEngine
 	return pref, nil
 }
 
