@@ -15,7 +15,9 @@ import tb "github.com/demget/telebot"
 func main() {
 	// "bot.json" is your config file
 	// "data" is your texts directory
-	pref, err := tb.NewSettings("bot.json", "data")
+	pref, err := tb.NewSettings("bot.json", &tb.TemplateText{
+	    Dir: "data",
+    })
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -39,8 +41,10 @@ func main() {
 ```
 
 ## Texts
-Put all messages' texts in another folder, e.g. `data`. Each message is `*.tmpl` file that will be parsed and executed by [`text/template`](https://golang.org/pkg/text/template) engine.
-
+Put all messages' texts in another folder, e.g. `data`. Each message is `*.tmpl` file that will be parsed and executed by [`text/template`](https://golang.org/pkg/text/template) engine or by [`aymerick/raymond`](https://github.com/aymerick/raymond).
+You can to select between them:
+* `tb.TemplateText` implements the `text/template` library
+* `tb.TemplateHandlebars` implements the `aymerick/raymond` library
 ### Example
 ```go
 func OnStart(m *tb.Message) {
