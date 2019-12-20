@@ -16,8 +16,8 @@ func main() {
 	// "bot.json" is your config file
 	// "data" is your texts directory
 	pref, err := tb.NewSettings("bot.json", &tb.TemplateText{
-	    Dir: "data",
-    })
+		Dir: "data",
+	})
 	if err != nil {
 		log.Fatalln(err)
 	}

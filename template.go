@@ -2,11 +2,12 @@ package telebot
 
 import (
 	"bytes"
-	"github.com/aymerick/raymond"
 	"io/ioutil"
 	"path"
 	"strings"
 	"text/template"
+
+	"github.com/aymerick/raymond"
 )
 
 // Template implements interface to parse with templates.
@@ -28,20 +29,23 @@ func (t *TemplateText) Execute(buf *bytes.Buffer, key string, arg interface{}) e
 	return t.tmpl.ExecuteTemplate(buf, key+".tmpl", arg)
 }
 
-// Implement initializes a template engine
+// Implement initializes a template engine.
 func (t *TemplateText) Implement() error {
-	tmpl, err := template.New("data").Funcs(TemplateFuncMap).ParseGlob(t.Dir + "/*.tmpl")
+	tmpl, err := template.New("data").
+		Funcs(TemplateFuncMap).
+		ParseGlob(t.Dir + "/*.tmpl")
 	if err != nil {
 		return err
 	}
+
 	t.tmpl = tmpl
 	return nil
 }
 
 // TemplateHandlebars implements a template interface using the aymerick/raymond library.
 type TemplateHandlebars struct {
-	Dir      string
 	handlers map[string]*raymond.Template
+	Dir      string
 }
 
 // Execute parses template.
@@ -50,21 +54,24 @@ func (t *TemplateHandlebars) Execute(buf *bytes.Buffer, key string, arg interfac
 	if !ok {
 		return nil
 	}
+
 	result, err := tmpl.Exec(arg)
 	if err != nil {
 		return err
 	}
+
 	_, err = buf.WriteString(result)
 	return err
 }
 
-// Implement initializes a template engine
+// Implement initializes a template engine.
 func (t *TemplateHandlebars) Implement() error {
-	t.handlers = make(map[string]*raymond.Template)
 	files, err := ioutil.ReadDir(t.Dir)
 	if err != nil {
 		return err
 	}
+
+	t.handlers = make(map[string]*raymond.Template)
 	for _, file := range files {
 		if file.IsDir() {
 			continue
@@ -72,6 +79,7 @@ func (t *TemplateHandlebars) Implement() error {
 		if !strings.HasSuffix(file.Name(), ".tmpl") {
 			continue
 		}
+
 		tmpl, err := raymond.ParseFile(path.Join(t.Dir, file.Name()))
 		if err != nil {
 			return err
