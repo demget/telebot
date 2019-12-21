@@ -4,28 +4,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"strings"
-	"text/template"
 
 	"github.com/ghodss/yaml"
 )
-
-// TemplateFuncMap is pre-defined functions that can be used in your templates.
-var TemplateFuncMap = template.FuncMap{
-	"add": func(a, b int) int { return a + b },
-	"sub": func(a, b int) int { return a - b },
-
-	// Escapes double-quotes. Useful in json templates.
-	"jsq": func(s string) string {
-		s = strings.ReplaceAll(s, `\`, `\\`)
-		s = strings.ReplaceAll(s, `"`, `\"`)
-		return s
-	},
-
-	// String functions
-	"title":  strings.ToTitle,
-	"repeat": strings.Repeat,
-}
 
 // NewSettings does try to load Settings from your json config file.
 // 	- path is config path
@@ -55,6 +36,8 @@ func NewSettingsYAML(path string, tmplEngine Template) (Settings, error) {
 
 func newSettings(data []byte, tmplEngine Template) (Settings, error) {
 	var pref Settings
+	pref.TemplateEngine = tmplEngine
+
 	if err := json.Unmarshal(data, &pref); err != nil {
 		return Settings{}, err
 	}
@@ -62,10 +45,12 @@ func newSettings(data []byte, tmplEngine Template) (Settings, error) {
 		return Settings{}, err
 	}
 
-	if err := tmplEngine.Implement(); err != nil {
+	tmpl := tmplEngine.New("data")
+	if err := tmpl.ParseGlob(); err != nil {
 		return Settings{}, err
 	}
-	pref.Content.Templates = tmplEngine
+
+	pref.Content.Templates = tmpl
 	return pref, nil
 }
 
@@ -91,6 +76,9 @@ type Settings struct {
 	// HTTP Client used to make requests to telegram api
 	Client *http.Client
 
+	// Passed template engine, that will be used for all executable content.
+	TemplateEngine Template
+
 	// You should specify Content's fields in your json config file.
 	Content *Content
 }
@@ -111,6 +99,7 @@ func (pref *Settings) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	aux.TemplateEngine = pref.TemplateEngine
 	*pref = Settings(aux.SettingsJSON)
 
 	if aux.Webhook != nil {
@@ -120,25 +109,25 @@ func (pref *Settings) UnmarshalJSON(data []byte) error {
 	}
 
 	cont := &Content{
-		Strings:       template.New("strings").Funcs(TemplateFuncMap),
-		InlineButtons: template.New("inline_buttons").Funcs(TemplateFuncMap),
-		InlineResults: template.New("inline_results").Funcs(TemplateFuncMap),
+		Strings:       pref.TemplateEngine.New("strings"),
+		InlineButtons: pref.TemplateEngine.New("inline_buttons"),
+		InlineResults: pref.TemplateEngine.New("inline_results"),
 	}
 
 	for k, v := range aux.Strings {
-		_, err := cont.Strings.New(k).Parse(v)
+		err := cont.Strings.Parse(k, v)
 		if err != nil {
 			return err
 		}
 	}
 	for k, v := range aux.InlineButtons {
-		_, err := cont.InlineButtons.New(k).Parse(string(v))
+		err := cont.InlineButtons.Parse(k, string(v))
 		if err != nil {
 			return err
 		}
 	}
 	for k, v := range aux.InlineResults {
-		_, err := cont.InlineResults.New(k).Parse(string(v))
+		err := cont.InlineResults.Parse(k, string(v))
 		if err != nil {
 			return err
 		}

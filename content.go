@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
-	"text/template"
 
 	"github.com/pkg/errors"
 )
@@ -18,18 +17,18 @@ type Content struct {
 	// Strings can be used for storing bot's specific strings
 	// that you can use in your messages or alerts.
 	// To format the string call bot.String("key", args...).
-	Strings *template.Template `json:"-"`
+	Strings Template `json:"-"`
 
 	// Simple ReplyMarkup entities.
 	Buttons   map[string]string     `json:"buttons"`
 	Keyboards map[string][][]string `json:"keyboards"`
 
 	// InlineMarkup entities.
-	InlineButtons   *template.Template    `json:"-"`
+	InlineButtons   Template              `json:"-"`
 	InlineKeyboards map[string][][]string `json:"inline_keyboards"`
 
 	// InlineQuery result entities.
-	InlineResults *template.Template `json:"-"`
+	InlineResults Template `json:"-"`
 
 	// Templates can be implement their template engine.
 	// Now you can choose between two templates:
@@ -58,7 +57,7 @@ func (c *Content) Text(key string, args ...interface{}) string {
 	}
 
 	var buf bytes.Buffer
-	if err := c.Templates.Execute(&buf, key, arg); err != nil {
+	if err := c.Templates.Execute(&buf, key+".tmpl", arg); err != nil {
 		c.debug(err)
 	}
 	return buf.String()
@@ -72,7 +71,7 @@ func (c *Content) String(key string, args ...interface{}) string {
 	}
 
 	var buf bytes.Buffer
-	if err := c.Strings.ExecuteTemplate(&buf, key, arg); err != nil {
+	if err := c.Strings.Execute(&buf, key, arg); err != nil {
 		c.debug(err)
 	}
 	return buf.String()
@@ -120,7 +119,7 @@ func (c *Content) InlineButton(key string, args ...interface{}) *InlineButton {
 	}
 
 	var buf bytes.Buffer
-	if err := c.InlineButtons.ExecuteTemplate(&buf, key, arg); err != nil {
+	if err := c.InlineButtons.Execute(&buf, key, arg); err != nil {
 		c.debug(err)
 		return nil
 	}
@@ -169,7 +168,7 @@ func (c *Content) InlineResult(key string, args ...interface{}) Result {
 	}
 
 	var buf bytes.Buffer
-	if err := c.InlineResults.ExecuteTemplate(&buf, key, arg); err != nil {
+	if err := c.InlineResults.Execute(&buf, key, arg); err != nil {
 		c.debug(err)
 		return nil
 	}
