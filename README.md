@@ -13,16 +13,32 @@ package main
 import tb "github.com/demget/telebot"
 
 func main() {
-	// "bot.json" is your config file
-	// "data" is your texts directory
-	pref, err := tb.NewSettings("bot.json", &tb.TemplateText{
+
+	tmpl := &tb.TemplateText{
+		// your message templates directory
 		Dir: "data",
-	})
+
+		// custom functions that you can use later in your template
+		// example: `${ upper "some string" }` = `SOME STRING`
+		Funcs: template.FuncMap{
+			"upper": strings.ToUpper,
+		},
+
+		// custom delimiters for valid YAML parsing
+		DelimLeft:  "${",
+		DelimRight: "}",
+	}
+
+	// "bot.json" is your config file
+	// "tmpl" is your template engine
+	pref, err := tb.NewSettings("bot.json", tmpl)
+	// if you chose yaml as a config language:
+	pref, err := tb.NewSettingsYAML("bot.yml", tmpl)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// you also can save token in bot.json
+	// you also can store token in config
 	pref.Token = os.Getenv("TOKEN") 
 	pref.Reporter = report
 
@@ -42,7 +58,7 @@ func main() {
 
 ## Texts
 Put all messages' texts in another folder, e.g. `data`. Each message is `*.tmpl` file that will be parsed and executed by [`text/template`](https://golang.org/pkg/text/template) engine or by [`aymerick/raymond`](https://github.com/aymerick/raymond).
-You can to select between them:
+You can select between them:
 * `tb.TemplateText` implements the `text/template` library
 * `tb.TemplateHandlebars` implements the `aymerick/raymond` library
 ### Example
@@ -65,8 +81,17 @@ func OnStart(m *tb.Message) {
 		"limits": {
 			"max_requests_per_user": 20
 		}
-	},
+	}
 }
+```
+```yaml
+vars:
+  secret: qz_BuGo2
+  admins:
+    - 1654231
+    - 2465232
+  limits:
+    max_requests_per_user: 20
 ```
 ```go
 package app
@@ -76,7 +101,6 @@ type Config struct {
 	Admins []int  `json:"admins"`
 	Limits struct {
 		MaxRequestsPerUser int `json:"max_requests_per_user"`
-		// ...
 	}
 }
 ```
@@ -101,8 +125,17 @@ if err := b.Vars(&conf); err != nil {
 	},
 	"keyboards": {
 		"menu": [["help", "settings"]]
-	},
+	}
 }
+```
+```yaml
+buttons:
+  help: "❓ Help"
+  settings: "⚙️ Settings"
+keyboards:
+  menu:
+  - - help
+    - settings
 ```
 ```go
 func OnStart(m *tb.Message) {
@@ -132,9 +165,28 @@ func OnStart(m *tb.Message) {
 		}
 	},
 	"inline_keyboards": {
-		"item": [["refresh"], ["remove"]],
-	},
+		"item": [["refresh"], ["remove"]]
+	}
 }
+```
+```yaml
+strings:
+  removed: "Removed successfully!"
+
+inline_buttons:
+  refresh:
+    unique: refresh
+    callback_data: ${.ID}
+    text: "🔄 Refresh"
+  remove:
+    unique: remove
+    callback_data: ${.ID}
+    text: "🛑 Remove"
+
+inline_keyboards:
+  item:
+  - - refresh
+    - remove
 ```
 ```go
 package handler
@@ -179,8 +231,17 @@ b.Handle(b.InlineButton("remove"), handler.OnRemove)
 			"description": "{{jsq .Description}}",
 			"thumb_url": "{{.ThumbnailURL}}"
 		}
-	},
+	}
 }
+```
+```yaml
+inline_results:
+  item:
+    type: article
+    id: ${.ID}
+    title: ${jsq .Title}
+    description: ${jsq .Description}
+    thumb_url: ${.ThumbnailURL}
 ```
 ```go
 package handler
@@ -211,18 +272,7 @@ func OnQuery(q *tb.OnQuery) {
 
 ## Additional and custom template functions
 
-There are some additional template functions which are accessible in any text template and config. Some simple things, that standard template package still not do. Check `settings.go` for all pre-defined functions. The list will be extended in the future.
-
-You can add your custom functions before creating bot instance like so:
-```go
-func init() {
-	tb.TemplateFuncMap["upper"] = strings.ToUpper
-
-	tb.TemplateFuncMap["name"] = func(s string) {
-		// your custom function
-	}
-}
-```
+There are some additional template functions which are accessible in any text template and config. Some simple things, that standard template package still not do. Check `template.go` for all pre-defined functions. The list will be extended in the future.
 
 **Examples:**
 
