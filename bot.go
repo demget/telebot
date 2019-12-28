@@ -817,11 +817,6 @@ func (b *Bot) EditMedia(message Editable, inputMedia InputMedia, options ...inte
 		resultMedia.ParseMode = sendOpts.ParseMode
 	}
 
-	sendOpts := extractOptions(options)
-	if sendOpts != nil {
-		resultMedia.ParseMode = sendOpts.ParseMode
-	}
-
 	switch y := inputMedia.(type) {
 	case *Photo:
 		resultMedia.Type = "photo"
