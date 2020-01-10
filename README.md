@@ -1,9 +1,19 @@
 
 # What is `content` branch
 
-This fork is simple and very helpful if you develop big and complex projects. The main goal is to manage bot's content easily – texts, buttons, keyboards etc. Also this package contains some patches and fixes by me that is still not accepted in original [`tucnak/telebot`](https://github.com/tucnak/telebot) repository. More bot examples will be added in the future.
+This fork is simple and very helpful if you develop big and complex projects. The main goal is to manage bot's content easily – texts, buttons, keyboards etc. Also this package contains some patches and fixes by me that is still not accepted in original [`tucnak/telebot`](https://github.com/tucnak/telebot) repository.
 
 **Feel free to use, contribute and ask questions!**
+
+# Examples
+
+### [@EmojiTextBot](https://github.com/demget/EmojiTextBot)
+- YAML configuration
+- Common project structure
+
+### [@FindYoutubeBot](https://github.com/demget/FindYoutubeBot)
+- JSON configuration
+- Simple project structure
 
 # How to use 
 
