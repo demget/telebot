@@ -26,7 +26,8 @@ type Photo struct {
 	Height int `json:"height"`
 
 	// (Optional)
-	Caption string `json:"caption,omitempty"`
+	Caption   string    `json:"caption,omitempty"`
+	ParseMode ParseMode `json:"parse_mode,omitempty"`
 }
 
 type photoSize struct {
@@ -131,6 +132,27 @@ func (v *Video) MediaFile() *File {
 	return &v.File
 }
 
+// Animation object represents a animation file.
+type Animation struct {
+	File
+
+	Width  int `json:"width"`
+	Height int `json:"height"`
+
+	Duration int `json:"duration,omitempty"`
+
+	// (Optional)
+	Caption   string `json:"caption,omitempty"`
+	Thumbnail *Photo `json:"thumb,omitempty"`
+	MIME      string `json:"mime_type,omitempty"`
+	FileName  string `json:"file_name,omitempty"`
+}
+
+// MediaFile returns &Animation.File
+func (a *Animation) MediaFile() *File {
+	return &a.File
+}
+
 // Voice object represents a voice note.
 type Voice struct {
 	File
@@ -187,4 +209,11 @@ type Venue struct {
 	// (Optional)
 	FoursquareID   string `json:"foursquare_id,omitempty"`
 	FoursquareType string `json:"foursquare_type,omitempty"`
+}
+
+// Dice object represents a dice with a random value
+// from 1 to 6 for currently supported base emoji.
+type Dice struct {
+	Type  DiceType `json:"emoji"`
+	Value int      `json:"value"`
 }

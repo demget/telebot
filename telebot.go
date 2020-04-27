@@ -28,6 +28,16 @@
 //
 package telebot
 
+import "github.com/pkg/errors"
+
+var (
+	ErrBadRecipient    = errors.New("telebot: recipient is nil")
+	ErrUnsupportedWhat = errors.New("telebot: unsupported what argument")
+	ErrCouldNotUpdate  = errors.New("telebot: could not fetch new updates")
+)
+
+const DefaultApiURL = "https://api.telegram.org"
+
 // These are one of the possible events Handle() can deal with.
 //
 // For convenience, all Telebot-provided endpoints start with
@@ -51,9 +61,11 @@ const (
 	OnPinned            = "\apinned"
 	OnChannelPost       = "\achan_post"
 	OnEditedChannelPost = "\achan_edited_post"
+	OnDice              = "\adice"
 
 	// Will fire when bot is added to a group.
 	OnAddedToGroup = "\aadded_to_group"
+
 	// Group events:
 	OnUserJoined        = "\auser_joined"
 	OnUserLeft          = "\auser_left"
@@ -88,6 +100,16 @@ const (
 	//
 	// Handler: func(*PreCheckoutQuery)
 	OnCheckout = "\apre_checkout_query"
+
+	// Will fire on Poll.
+	//
+	// Handler: func(*Poll)
+	OnPoll = "\apoll"
+
+	// Will fire on PollAnswer.
+	//
+	// Handler: func(*PollAnswer)
+	OnPollAnswer = "\apoll_answer"
 )
 
 // ChatAction is a client-side status indicating bot activity.
@@ -102,6 +124,7 @@ const (
 	UploadingVNote    ChatAction = "upload_video_note"
 	RecordingVideo    ChatAction = "record_video"
 	RecordingAudio    ChatAction = "record_audio"
+	RecordingVNote    ChatAction = "record_video_note"
 	FindingLocation   ChatAction = "find_location"
 )
 
@@ -109,26 +132,31 @@ const (
 type ParseMode = string
 
 const (
-	ModeDefault  ParseMode = ""
-	ModeMarkdown ParseMode = "Markdown"
-	ModeHTML     ParseMode = "HTML"
+	ModeDefault    ParseMode = ""
+	ModeMarkdown   ParseMode = "Markdown"
+	ModeMarkdownV2 ParseMode = "MarkdownV2"
+	ModeHTML       ParseMode = "HTML"
 )
 
 // EntityType is a MessageEntity type.
 type EntityType string
 
 const (
-	EntityMention   EntityType = "mention"
-	EntityTMention  EntityType = "text_mention"
-	EntityHashtag   EntityType = "hashtag"
-	EntityCommand   EntityType = "bot_command"
-	EntityURL       EntityType = "url"
-	EntityEmail     EntityType = "email"
-	EntityBold      EntityType = "bold"
-	EntityItalic    EntityType = "italic"
-	EntityCode      EntityType = "code"
-	EntityCodeBlock EntityType = "pre"
-	EntityTextLink  EntityType = "text_link"
+	EntityMention       EntityType = "mention"
+	EntityTMention      EntityType = "text_mention"
+	EntityHashtag       EntityType = "hashtag"
+	EntityCashtag       EntityType = "cashtag"
+	EntityCommand       EntityType = "bot_command"
+	EntityURL           EntityType = "url"
+	EntityEmail         EntityType = "email"
+	EntityPhone         EntityType = "phone_number"
+	EntityBold          EntityType = "bold"
+	EntityItalic        EntityType = "italic"
+	EntityUnderline     EntityType = "underline"
+	EntityStrikethrough EntityType = "strikethrough"
+	EntityCode          EntityType = "code"
+	EntityCodeBlock     EntityType = "pre"
+	EntityTextLink      EntityType = "text_link"
 )
 
 // ChatType represents one of the possible chat types.
@@ -142,7 +170,7 @@ const (
 	ChatChannelPrivate ChatType = "privatechannel"
 )
 
-// MemberStatus is one's chat status
+// MemberStatus is one's chat status.
 type MemberStatus string
 
 const (
@@ -164,4 +192,21 @@ const (
 	FeatureChin     MaskFeature = "chin"
 )
 
-const DefaultApiURL = "https://api.telegram.org"
+// PollType defines poll types.
+type PollType string
+
+const (
+	// Despite "any" type isn't described in documentation,
+	// it needed for proper KeyboardButtonPollType marshaling.
+	PollAny PollType = "any"
+
+	PollQuiz    PollType = "quiz"
+	PollRegular PollType = "regular"
+)
+
+type DiceType string
+
+var (
+	Cube = &Dice{Type: "🎲"}
+	Dart = &Dice{Type: "🎯"}
+)

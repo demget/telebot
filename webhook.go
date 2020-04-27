@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 // A WebhookTLS specifies the path to a key and a cert so the poller can open
@@ -35,17 +36,15 @@ type WebhookEndpoint struct {
 // You can also leave the Listen field empty. In this case it is up to the caller to
 // add the Webhook to a http-mux.
 type Webhook struct {
-	Listen   string
+	Listen         string
+	MaxConnections int
+	AllowedUpdates []string
+
 	TLS      *WebhookTLS
 	Endpoint *WebhookEndpoint
-	dest     chan<- Update
-	bot      *Bot
-}
 
-type registerResult struct {
-	Ok          bool   `json:"ok"`
-	ErrorCode   int    `json:"error_code"`
-	Description string `json:"description"`
+	dest chan<- Update
+	bot  *Bot
 }
 
 func (h *Webhook) getFiles() map[string]File {
@@ -71,41 +70,38 @@ func (h *Webhook) getFiles() map[string]File {
 }
 
 func (h *Webhook) getParams() map[string]string {
-	param := make(map[string]string)
+	params := make(map[string]string)
+
+	if h.MaxConnections != 0 {
+		params["max_connections"] = strconv.Itoa(h.MaxConnections)
+	}
+	if len(h.AllowedUpdates) > 0 {
+		data, _ := json.Marshal(h.AllowedUpdates)
+		params["allowed_updates"] = string(data)
+	}
+
 	if h.TLS != nil {
-		param["url"] = "https://" + h.Listen
+		params["url"] = "https://" + h.Listen
 	} else {
 		// this will not work with telegram, they want TLS
 		// but i allow this because telegram will send an error
 		// when you register this hook. in their docs they write
 		// that port 80/http is allowed ...
-		param["url"] = "http://" + h.Listen
+		params["url"] = "http://" + h.Listen
 	}
 	if h.Endpoint != nil {
-		param["url"] = h.Endpoint.PublicURL
+		params["url"] = h.Endpoint.PublicURL
 	}
-	return param
+	return params
 }
 
 func (h *Webhook) Poll(b *Bot, dest chan Update, stop chan struct{}) {
-	res, err := b.sendFiles("setWebhook", h.getFiles(), h.getParams())
-	if err != nil {
-		b.debug(fmt.Errorf("setWebhook failed %q: %v", string(res), err))
+	if err := b.SetWebhook(h); err != nil {
+		b.debug(err)
 		close(stop)
 		return
 	}
-	var result registerResult
-	err = json.Unmarshal(res, &result)
-	if err != nil {
-		b.debug(fmt.Errorf("bad json data %q: %v", string(res), err))
-		close(stop)
-		return
-	}
-	if !result.Ok {
-		b.debug(fmt.Errorf("cannot register webhook: %s", result.Description))
-		close(stop)
-		return
-	}
+
 	// store the variables so the HTTP-handler can use 'em
 	h.dest = dest
 	h.bot = b
@@ -147,4 +143,17 @@ func (h *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.dest <- update
+}
+
+// SetWebhook configures a bot to receive incoming
+// updates via an outgoing webhook.
+func (b *Bot) SetWebhook(w *Webhook) error {
+	_, err := b.sendFiles("setWebhook", w.getFiles(), w.getParams())
+	return err
+}
+
+// RemoveWebhook removes webhook integration.
+func (b *Bot) RemoveWebhook() error {
+	_, err := b.Raw("deleteWebhook", nil)
+	return err
 }

@@ -3,6 +3,7 @@ package telebot
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strconv"
 )
 
@@ -166,6 +167,44 @@ func (v *Video) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	return msg, nil
 }
 
+// Send delivers animation through bot b to recipient.
+// @see https://core.telegram.org/bots/api#sendanimation
+func (a *Animation) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
+	params := map[string]string{
+		"chat_id":   to.Recipient(),
+		"caption":   a.Caption,
+		"file_name": a.FileName,
+	}
+
+	if a.Duration != 0 {
+		params["duration"] = strconv.Itoa(a.Duration)
+	}
+	if a.Width != 0 {
+		params["width"] = strconv.Itoa(a.Width)
+	}
+	if a.Height != 0 {
+		params["height"] = strconv.Itoa(a.Height)
+	}
+
+	// file_name is required, without file_name GIFs sent as document
+	if params["file_name"] == "" && a.File.OnDisk() {
+		params["file_name"] = filepath.Base(a.File.FileLocal)
+	}
+
+	embedSendOptions(params, opt)
+
+	msg, err := b.sendObject(&a.File, "animation", params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	msg.Animation.File.stealRef(&a.File)
+	*a = *msg.Animation
+	a.Caption = msg.Caption
+
+	return msg, nil
+}
+
 // Send delivers media through bot b to recipient.
 func (v *Voice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	params := map[string]string{
@@ -225,12 +264,12 @@ func (x *Location) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error
 	}
 	embedSendOptions(params, opt)
 
-	respJSON, err := b.Raw("sendLocation", params)
+	data, err := b.Raw("sendLocation", params)
 	if err != nil {
 		return nil, err
 	}
 
-	return extractMsgResponse(respJSON)
+	return extractMessage(data)
 }
 
 // Send delivers media through bot b to recipient.
@@ -246,12 +285,12 @@ func (v *Venue) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	}
 	embedSendOptions(params, opt)
 
-	respJSON, err := b.Raw("sendVenue", params)
+	data, err := b.Raw("sendVenue", params)
 	if err != nil {
 		return nil, err
 	}
 
-	return extractMsgResponse(respJSON)
+	return extractMessage(data)
 }
 
 // Send delivers media through bot b to recipient.
@@ -270,10 +309,63 @@ func (i *Invoice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error)
 	}
 	embedSendOptions(params, opt)
 
-	respJSON, err := b.Raw("sendInvoice", params)
+	data, err := b.Raw("sendInvoice", params)
 	if err != nil {
 		return nil, err
 	}
 
-	return extractMsgResponse(respJSON)
+	return extractMessage(data)
+}
+
+// Send delivers poll through bot b to recipient.
+func (p *Poll) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
+	params := map[string]string{
+		"chat_id":                 to.Recipient(),
+		"question":                p.Question,
+		"type":                    string(p.Type),
+		"is_closed":               strconv.FormatBool(p.Closed),
+		"is_anonymous":            strconv.FormatBool(p.Anonymous),
+		"allows_multiple_answers": strconv.FormatBool(p.MultipleAnswers),
+		"correct_option_id":       strconv.Itoa(p.CorrectOption),
+	}
+	if p.Explanation != "" {
+		params["explanation"] = p.Explanation
+		params["explanation_parse_mode"] = p.ParseMode
+	}
+	if p.OpenPeriod != 0 {
+		params["open_period"] = strconv.Itoa(p.OpenPeriod)
+	} else if p.CloseUnixdate != 0 {
+		params["close_date"] = strconv.FormatInt(p.CloseUnixdate, 10)
+	}
+	embedSendOptions(params, opt)
+
+	var options []string
+	for _, o := range p.Options {
+		options = append(options, o.Text)
+	}
+	opts, _ := json.Marshal(options)
+	params["options"] = string(opts)
+
+	data, err := b.Raw("sendPoll", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractMessage(data)
+}
+
+// Send delivers dice through bot b to recipient
+func (d *Dice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
+	params := map[string]string{
+		"chat_id": to.Recipient(),
+		"emoji":   string(d.Type),
+	}
+	embedSendOptions(params, opt)
+
+	data, err := b.Raw("sendDice", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractMessage(data)
 }

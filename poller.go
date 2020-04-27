@@ -2,12 +2,6 @@ package telebot
 
 import (
 	"time"
-
-	"github.com/pkg/errors"
-)
-
-var (
-	ErrCouldNotUpdate = errors.New("telebot: could not fetch new updates")
 )
 
 // Poller is a provider of Updates.
@@ -59,6 +53,7 @@ func (p *MiddlewarePoller) Poll(b *Bot, dest chan Update, stop chan struct{}) {
 
 	for {
 		select {
+
 		// call to stop
 		case <-stop:
 			stopPoller <- struct{}{}
@@ -78,22 +73,42 @@ func (p *MiddlewarePoller) Poll(b *Bot, dest chan Update, stop chan struct{}) {
 
 // LongPoller is a classic LongPoller with timeout.
 type LongPoller struct {
-	Timeout time.Duration
-
+	Limit        int
+	Timeout      time.Duration
 	LastUpdateID int
+
+	// AllowedUpdates contains the update types
+	// you want your bot to receive.
+	//
+	// Possible values:
+	//		message
+	// 		edited_message
+	// 		channel_post
+	// 		edited_channel_post
+	// 		inline_query
+	// 		chosen_inline_result
+	// 		callback_query
+	// 		shipping_query
+	// 		pre_checkout_query
+	// 		poll
+	// 		poll_answer
+	//
+	AllowedUpdates []string
 }
 
 // Poll does long polling.
 func (p *LongPoller) Poll(b *Bot, dest chan Update, stop chan struct{}) {
-	go func(stop chan struct{}) {
-		<-stop
-		close(stop)
-	}(stop)
-
 	for {
-		updates, err := b.getUpdates(p.LastUpdateID+1, p.Timeout)
+		select {
+		case <-stop:
+			close(stop)
+			return
+		default:
+		}
 
+		updates, err := b.getUpdates(p.LastUpdateID+1, p.Limit, p.Timeout, p.AllowedUpdates)
 		if err != nil {
+			b.debug(err)
 			b.debug(ErrCouldNotUpdate)
 			continue
 		}
