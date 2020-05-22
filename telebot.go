@@ -34,6 +34,7 @@ var (
 	ErrBadRecipient    = errors.New("telebot: recipient is nil")
 	ErrUnsupportedWhat = errors.New("telebot: unsupported what argument")
 	ErrCouldNotUpdate  = errors.New("telebot: could not fetch new updates")
+	ErrNoGameMessage   = errors.New("telebot: no game message")
 )
 
 const DefaultApiURL = "https://api.telegram.org"
@@ -49,6 +50,7 @@ const (
 	OnText              = "\atext"
 	OnPhoto             = "\aphoto"
 	OnAudio             = "\aaudio"
+	OnAnimation         = "\aanimation"
 	OnDocument          = "\adocument"
 	OnSticker           = "\asticker"
 	OnVideo             = "\avideo"
@@ -62,6 +64,8 @@ const (
 	OnChannelPost       = "\achan_post"
 	OnEditedChannelPost = "\achan_edited_post"
 	OnDice              = "\adice"
+	OnInvoice           = "\ainvoice"
+	OnPayment           = "\apayment"
 
 	// Will fire when bot is added to a group.
 	OnAddedToGroup = "\aadded_to_group"
@@ -95,6 +99,11 @@ const (
 	//
 	// Handler: func(*ChosenInlineResult)
 	OnChosenInlineResult = "\achosen_inline_result"
+
+	// Will fire on ShippingQuery.
+	//
+	// Handler: func(*ShippingQuery)
+	OnShipping = "\ashipping_query"
 
 	// Will fire on PreCheckoutQuery.
 	//

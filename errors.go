@@ -13,7 +13,7 @@ type APIError struct {
 }
 
 // ʔ returns description of error.
-// A tiny shortcut to make code clearier.
+// A tiny shortcut to make code clearer.
 func (err *APIError) ʔ() string {
 	return err.Description
 }
@@ -45,15 +45,16 @@ func NewAPIError(code int, msgs ...string) *APIError {
 	return err
 }
 
-var errorRx = regexp.MustCompile(`{.+"error_code":(\d+),"description":"(.+)"}`)
+var errorRx = regexp.MustCompile(`{.+"error_code":(\d+),"description":"(.+)".*}`)
 
 var (
 	// General errors
 	ErrUnauthorized      = NewAPIError(401, "Unauthorized")
+	ErrNotStartedByUser  = NewAPIError(403, "Forbidden: bot can't initiate conversation with a user")
 	ErrBlockedByUser     = NewAPIError(401, "Forbidden: bot was blocked by the user")
 	ErrUserIsDeactivated = NewAPIError(401, "Forbidden: user is deactivated")
 	ErrNotFound          = NewAPIError(404, "Not Found")
-	ErrInternal          = NewAPIError(500, "Internal Server Error ")
+	ErrInternal          = NewAPIError(500, "Internal Server Error")
 
 	// Bad request errors
 	ErrTooLarge             = NewAPIError(400, "Request Entity Too Large")
@@ -75,7 +76,7 @@ var (
 	ErrWrongFileIDCharacter = NewAPIError(400, "Bad Request: wrong remote file id specified: Wrong character in the string")
 	ErrWrongFileIDPadding   = NewAPIError(400, "Bad Request: wrong remote file id specified: Wrong padding in the string")
 	ErrFailedImageProcess   = NewAPIError(400, "Bad Request: IMAGE_PROCESS_FAILED", "Image process failed")
-	ErrInvaliadStickerset   = NewAPIError(400, "Bad Request: STICKERSET_INVALID", "Stickerset is invalid")
+	ErrInvalidStickerSet    = NewAPIError(400, "Bad Request: STICKERSET_INVALID", "Stickerset is invalid")
 	ErrBadPollOptions       = NewAPIError(400, "Bad Request: expected Array of String as options")
 
 	// No rights errors
@@ -97,6 +98,8 @@ func ErrByDescription(s string) error {
 	switch s {
 	case ErrUnauthorized.ʔ():
 		return ErrUnauthorized
+	case ErrNotStartedByUser.ʔ():
+		return ErrNotStartedByUser
 	case ErrNotFound.ʔ():
 		return ErrNotFound
 	case ErrUserIsDeactivated.ʔ():
@@ -161,8 +164,8 @@ func ErrByDescription(s string) error {
 		return ErrWrongFileIDPadding
 	case ErrFailedImageProcess.ʔ():
 		return ErrFailedImageProcess
-	case ErrInvaliadStickerset.ʔ():
-		return ErrInvaliadStickerset
+	case ErrInvalidStickerSet.ʔ():
+		return ErrInvalidStickerSet
 	default:
 		return nil
 	}

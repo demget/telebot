@@ -36,18 +36,23 @@ func NewBot(pref Settings) (*Bot, error) {
 		Poller:  pref.Poller,
 		Content: pref.Content,
 
-		handlers: make(map[string]interface{}),
-		stop:     make(chan struct{}),
-		reporter: pref.Reporter,
-		client:   client,
+		handlers:    make(map[string]interface{}),
+		synchronous: pref.Synchronous,
+		stop:        make(chan struct{}),
+		reporter:    pref.Reporter,
+		client:      client,
 	}
 
-	user, err := bot.getMe()
-	if err != nil {
-		return nil, err
+	if pref.offline {
+		bot.Me = &User{}
+	} else {
+		user, err := bot.getMe()
+		if err != nil {
+			return nil, err
+		}
+		bot.Me = user
 	}
 
-	bot.Me = user
 	return bot, nil
 }
 
@@ -60,10 +65,11 @@ type Bot struct {
 	Poller  Poller
 	*Content
 
-	handlers map[string]interface{}
-	reporter func(error)
-	stop     chan struct{}
-	client   *http.Client
+	handlers    map[string]interface{}
+	synchronous bool
+	reporter    func(error)
+	stop        chan struct{}
+	client      *http.Client
 }
 
 // Update object represents an incoming update.
@@ -77,6 +83,7 @@ type Update struct {
 	Callback           *Callback           `json:"callback_query,omitempty"`
 	Query              *Query              `json:"inline_query,omitempty"`
 	ChosenInlineResult *ChosenInlineResult `json:"chosen_inline_result,omitempty"`
+	ShippingQuery      *ShippingQuery      `json:"shipping_query,omitempty"`
 	PreCheckoutQuery   *PreCheckoutQuery   `json:"pre_checkout_query,omitempty"`
 	Poll               *Poll               `json:"poll,omitempty"`
 	PollAnswer         *PollAnswer         `json:"poll_answer,omitempty"`
@@ -84,30 +91,12 @@ type Update struct {
 
 // Command represents a bot command.
 type Command struct {
-	// Text is a aext of the command, 1-32 characters.
+	// Text is a text of the command, 1-32 characters.
 	// Can contain only lowercase English letters, digits and underscores.
 	Text string `json:"command"`
 
 	// Description of the command, 3-256 characters.
 	Description string `json:"description"`
-}
-
-// ChosenInlineResult represents a result of an inline query that was chosen
-// by the user and sent to their chat partner.
-type ChosenInlineResult struct {
-	From      User      `json:"from"`
-	Location  *Location `json:"location,omitempty"`
-	ResultID  string    `json:"result_id"`
-	Query     string    `json:"query"`
-	MessageID string    `json:"inline_message_id"` // inline messages only!
-}
-
-type PreCheckoutQuery struct {
-	Sender   *User  `json:"from"`
-	ID       string `json:"id"`
-	Currency string `json:"currency"`
-	Payload  string `json:"invoice_payload"`
-	Total    int    `json:"total_amount"`
 }
 
 // Handle lets you set the handler for some command name or
@@ -152,10 +141,10 @@ func (b *Bot) Start() {
 		select {
 		// handle incoming updates
 		case upd := <-b.Updates:
-			b.incomingUpdate(&upd)
+			b.ProcessUpdate(upd)
 		// call to stop polling
 		case <-b.stop:
-			stop <- struct{}{}
+			close(stop)
 			return
 		}
 	}
@@ -166,7 +155,9 @@ func (b *Bot) Stop() {
 	b.stop <- struct{}{}
 }
 
-func (b *Bot) incomingUpdate(upd *Update) {
+// ProcessUpdate processes a single incoming update.
+// A started bot calls this function automatically.
+func (b *Bot) ProcessUpdate(upd Update) {
 	if upd.Message != nil {
 		m := upd.Message
 
@@ -177,7 +168,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 
 		// Commands
 		if m.Text != "" {
-			// Filtering malicious messsages
+			// Filtering malicious messages
 			if m.Text[0] == '\a' {
 				return
 			}
@@ -207,6 +198,16 @@ func (b *Bot) incomingUpdate(upd *Update) {
 		}
 
 		if b.handleMedia(m) {
+			return
+		}
+
+		if m.Invoice != nil {
+			b.handle(OnInvoice, m)
+			return
+		}
+
+		if m.Payment != nil {
+			b.handle(OnPayment, m)
 			return
 		}
 
@@ -257,12 +258,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 					panic("telebot: migration handler is bad")
 				}
 
-				go func(b *Bot, handler func(int64, int64), from, to int64) {
-					if b.reporter == nil {
-						defer b.deferDebug()
-					}
-					handler(from, to)
-				}(b, handler, m.Chat.ID, m.MigrateTo)
+				b.runHandler(func() { handler(m.Chat.ID, m.MigrateTo) })
 			}
 
 			return
@@ -314,12 +310,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 						}
 
 						upd.Callback.Data = payload
-						go func(b *Bot, handler func(*Callback), c *Callback) {
-							if b.reporter == nil {
-								defer b.deferDebug()
-							}
-							handler(c)
-						}(b, handler, upd.Callback)
+						b.runHandler(func() { handler(upd.Callback) })
 
 						return
 					}
@@ -333,12 +324,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: callback handler is bad")
 			}
 
-			go func(b *Bot, handler func(*Callback), c *Callback) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(c)
-			}(b, handler, upd.Callback)
+			b.runHandler(func() { handler(upd.Callback) })
 		}
 
 		return
@@ -351,12 +337,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: query handler is bad")
 			}
 
-			go func(b *Bot, handler func(*Query), q *Query) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(q)
-			}(b, handler, upd.Query)
+			b.runHandler(func() { handler(upd.Query) })
 		}
 
 		return
@@ -369,12 +350,20 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: chosen inline result handler is bad")
 			}
 
-			go func(b *Bot, handler func(*ChosenInlineResult), r *ChosenInlineResult) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(r)
-			}(b, handler, upd.ChosenInlineResult)
+			b.runHandler(func() { handler(upd.ChosenInlineResult) })
+		}
+
+		return
+	}
+
+	if upd.ShippingQuery != nil {
+		if handler, ok := b.handlers[OnShipping]; ok {
+			handler, ok := handler.(func(*ShippingQuery))
+			if !ok {
+				panic("telebot: shipping query handler is bad")
+			}
+
+			b.runHandler(func() { handler(upd.ShippingQuery) })
 		}
 
 		return
@@ -387,12 +376,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: pre checkout query handler is bad")
 			}
 
-			go func(b *Bot, handler func(*PreCheckoutQuery), pre *PreCheckoutQuery) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(pre)
-			}(b, handler, upd.PreCheckoutQuery)
+			b.runHandler(func() { handler(upd.PreCheckoutQuery) })
 		}
 
 		return
@@ -405,12 +389,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: poll handler is bad")
 			}
 
-			go func(b *Bot, handler func(*Poll), p *Poll) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(p)
-			}(b, handler, upd.Poll)
+			b.runHandler(func() { handler(upd.Poll) })
 		}
 
 		return
@@ -423,12 +402,7 @@ func (b *Bot) incomingUpdate(upd *Update) {
 				panic("telebot: poll answer handler is bad")
 			}
 
-			go func(b *Bot, handler func(*PollAnswer), pa *PollAnswer) {
-				if b.reporter == nil {
-					defer b.deferDebug()
-				}
-				handler(pa)
-			}(b, handler, upd.PollAnswer)
+			b.runHandler(func() { handler(upd.PollAnswer) })
 		}
 
 		return
@@ -442,12 +416,7 @@ func (b *Bot) handle(end string, m *Message) bool {
 			panic(fmt.Errorf("telebot: %s handler is bad", end))
 		}
 
-		go func(b *Bot, handler func(*Message), m *Message) {
-			if b.reporter == nil {
-				defer b.deferDebug()
-			}
-			handler(m)
-		}(b, handler, m)
+		b.runHandler(func() { handler(m) })
 
 		return true
 	}
@@ -463,6 +432,8 @@ func (b *Bot) handleMedia(m *Message) bool {
 		b.handle(OnVoice, m)
 	case m.Audio != nil:
 		b.handle(OnAudio, m)
+	case m.Animation != nil:
+		b.handle(OnAnimation, m)
 	case m.Document != nil:
 		b.handle(OnDocument, m)
 	case m.Sticker != nil:
@@ -495,7 +466,7 @@ func (b *Bot) handleMedia(m *Message) bool {
 //
 //     - *SendOptions (the actual object accepted by Telegram API)
 //     - *ReplyMarkup (a component of SendOptions)
-//     - Option (a shorcut flag for popular options)
+//     - Option (a shortcut flag for popular options)
 //     - ParseMode (HTML, Markdown, etc)
 //
 func (b *Bot) Send(to Recipient, what interface{}, options ...interface{}) (*Message, error) {
@@ -634,16 +605,17 @@ func (b *Bot) Reply(to *Message, what interface{}, options ...interface{}) (*Mes
 
 // Forward behaves just like Send() but of all options it only supports Silent (see Bots API).
 //
-// This function will panic upon nil Message.
-func (b *Bot) Forward(to Recipient, what *Message, options ...interface{}) (*Message, error) {
+// This function will panic upon nil Editable.
+func (b *Bot) Forward(to Recipient, msg Editable, options ...interface{}) (*Message, error) {
 	if to == nil {
 		return nil, ErrBadRecipient
 	}
+	msgID, chatID := msg.MessageSig()
 
 	params := map[string]string{
 		"chat_id":      to.Recipient(),
-		"from_chat_id": what.Chat.Recipient(),
-		"message_id":   strconv.Itoa(what.ID),
+		"from_chat_id": strconv.FormatInt(chatID, 10),
+		"message_id":   msgID,
 	}
 
 	sendOpts := extractOptions(options)
@@ -669,7 +641,7 @@ func (b *Bot) Forward(to Recipient, what *Message, options ...interface{}) (*Mes
 func (b *Bot) Edit(msg Editable, what interface{}, options ...interface{}) (*Message, error) {
 	var (
 		method string
-		params = map[string]string{}
+		params = make(map[string]string)
 	)
 
 	switch v := what.(type) {
@@ -685,6 +657,7 @@ func (b *Bot) Edit(msg Editable, what interface{}, options ...interface{}) (*Mes
 	}
 
 	msgID, chatID := msg.MessageSig()
+
 	if chatID == 0 { // if inline message
 		params["inline_message_id"] = msgID
 	} else {
@@ -710,7 +683,7 @@ func (b *Bot) Edit(msg Editable, what interface{}, options ...interface{}) (*Mes
 // This function will panic upon nil Editable.
 func (b *Bot) EditReplyMarkup(msg Editable, markup *ReplyMarkup) (*Message, error) {
 	msgID, chatID := msg.MessageSig()
-	params := map[string]string{}
+	params := make(map[string]string)
 
 	if chatID == 0 { // if inline message
 		params["inline_message_id"] = msgID
@@ -863,7 +836,7 @@ func (b *Bot) EditMedia(msg Editable, media InputMedia, options ...interface{}) 
 	}
 
 	msgID, chatID := msg.MessageSig()
-	params := map[string]string{}
+	params := make(map[string]string)
 
 	sendOpts := extractOptions(options)
 	embedSendOptions(params, sendOpts)
@@ -914,12 +887,8 @@ func (b *Bot) Delete(msg Editable) error {
 		"message_id": msgID,
 	}
 
-	data, err := b.Raw("deleteMessage", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("deleteMessage", params)
+	return err
 }
 
 // Notify updates the chat action for recipient.
@@ -941,12 +910,46 @@ func (b *Bot) Notify(to Recipient, action ChatAction) error {
 		"action":  string(action),
 	}
 
-	data, err := b.Raw("sendChatAction", params)
-	if err != nil {
-		return err
+	_, err := b.Raw("sendChatAction", params)
+	return err
+}
+
+// Ship replies to the shipping query, if you sent an invoice
+// requesting an address and the parameter is_flexible was specified.
+//
+// Usage:
+//
+//		b.Ship(query)          // OK
+//		b.Ship(query, opts...) // OK with options
+//		b.Ship(query, "Oops!") // Error message
+//
+func (b *Bot) Ship(query *ShippingQuery, what ...interface{}) error {
+	params := map[string]string{
+		"shipping_query_id": query.ID,
 	}
 
-	return extractOk(data)
+	if len(what) == 0 {
+		params["ok"] = "True"
+	} else if s, ok := what[0].(string); ok {
+		params["ok"] = "False"
+		params["error_message"] = s
+	} else {
+		var opts []ShippingOption
+		for _, v := range what {
+			opt, ok := v.(ShippingOption)
+			if !ok {
+				return ErrUnsupportedWhat
+			}
+			opts = append(opts, opt)
+		}
+
+		params["ok"] = "True"
+		data, _ := json.Marshal(opts)
+		params["shipping_options"] = string(data)
+	}
+
+	_, err := b.Raw("answerShippingQuery", params)
+	return err
 }
 
 // Accept finalizes the deal.
@@ -962,12 +965,8 @@ func (b *Bot) Accept(query *PreCheckoutQuery, errorMessage ...string) error {
 		params["error_message"] = errorMessage[0]
 	}
 
-	data, err := b.Raw("answerPreCheckoutQuery", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("answerPreCheckoutQuery", params)
+	return err
 }
 
 // Answer sends a response for a given inline query. A query can only
@@ -980,12 +979,8 @@ func (b *Bot) Answer(query *Query, resp *QueryResponse) error {
 		result.Process()
 	}
 
-	data, err := b.Raw("answerInlineQuery", resp)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("answerInlineQuery", resp)
+	return err
 }
 
 // Respond sends a response for a given callback query. A callback can
@@ -1006,12 +1001,8 @@ func (b *Bot) Respond(c *Callback, response ...*CallbackResponse) error {
 	}
 
 	resp.CallbackID = c.ID
-	data, err := b.Raw("answerCallbackQuery", resp)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("answerCallbackQuery", resp)
+	return err
 }
 
 // FileByID returns full file object including File.FilePath, allowing you to
@@ -1172,12 +1163,8 @@ func (b *Bot) SetGroupTitle(chat *Chat, title string) error {
 		"title":   title,
 	}
 
-	data, err := b.Raw("setChatTitle", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("setChatTitle", params)
+	return err
 }
 
 // SetGroupDescription should be used to update group title.
@@ -1187,12 +1174,8 @@ func (b *Bot) SetGroupDescription(chat *Chat, description string) error {
 		"description": description,
 	}
 
-	data, err := b.Raw("setChatDescription", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("setChatDescription", params)
+	return err
 }
 
 // SetGroupPhoto should be used to update group photo.
@@ -1201,12 +1184,8 @@ func (b *Bot) SetGroupPhoto(chat *Chat, p *Photo) error {
 		"chat_id": chat.Recipient(),
 	}
 
-	data, err := b.sendFiles("setChatPhoto", map[string]File{"photo": p.File}, params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.sendFiles("setChatPhoto", map[string]File{"photo": p.File}, params)
+	return err
 }
 
 // SetGroupStickerSet should be used to update group's group sticker set.
@@ -1216,12 +1195,8 @@ func (b *Bot) SetGroupStickerSet(chat *Chat, setName string) error {
 		"sticker_set_name": setName,
 	}
 
-	data, err := b.Raw("setChatStickerSet", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("setChatStickerSet", params)
+	return err
 }
 
 // SetGroupPermissions sets default chat permissions for all members.
@@ -1231,12 +1206,8 @@ func (b *Bot) SetGroupPermissions(chat *Chat, perms Rights) error {
 	}
 	embedRights(params, perms)
 
-	data, err := b.Raw("setChatPermissions", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("setChatPermissions", params)
+	return err
 }
 
 // DeleteGroupPhoto should be used to just remove group photo.
@@ -1245,12 +1216,8 @@ func (b *Bot) DeleteGroupPhoto(chat *Chat) error {
 		"chat_id": chat.Recipient(),
 	}
 
-	data, err := b.Raw("deleteChatPhoto", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("deleteChatPhoto", params)
+	return err
 }
 
 // DeleteGroupStickerSet should be used to just remove group sticker set.
@@ -1259,12 +1226,8 @@ func (b *Bot) DeleteGroupStickerSet(chat *Chat) error {
 		"chat_id": chat.Recipient(),
 	}
 
-	data, err := b.Raw("deleteChatStickerSet", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("deleteChatStickerSet", params)
+	return err
 }
 
 // Leave makes bot leave a group, supergroup or channel.
@@ -1273,12 +1236,8 @@ func (b *Bot) Leave(chat *Chat) error {
 		"chat_id": chat.Recipient(),
 	}
 
-	data, err := b.Raw("leaveChat", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("leaveChat", params)
+	return err
 }
 
 // Pin pins a message in a supergroup or a channel.
@@ -1296,12 +1255,8 @@ func (b *Bot) Pin(msg Editable, options ...interface{}) error {
 	sendOpts := extractOptions(options)
 	embedSendOptions(params, sendOpts)
 
-	data, err := b.Raw("pinChatMessage", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("pinChatMessage", params)
+	return err
 }
 
 // Unpin unpins a message in a supergroup or a channel.
@@ -1312,12 +1267,8 @@ func (b *Bot) Unpin(chat *Chat) error {
 		"chat_id": chat.Recipient(),
 	}
 
-	data, err := b.Raw("unpinChatMessage", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
+	_, err := b.Raw("unpinChatMessage", params)
+	return err
 }
 
 // ChatByID fetches chat info of its ID.
@@ -1404,134 +1355,6 @@ func (b *Bot) FileURLByID(fileID string) (string, error) {
 	return b.URL + "/file/bot" + b.Token + "/" + f.FilePath, nil
 }
 
-// UploadStickerFile uploads a .PNG file with a sticker for later use.
-//
-// NOTE: Deprecated and will be changed in future releases.
-func (b *Bot) UploadStickerFile(userID int, png *File) (*File, error) {
-	files := map[string]File{
-		"png_sticker": *png,
-	}
-	params := map[string]string{
-		"user_id": strconv.Itoa(userID),
-	}
-
-	data, err := b.sendFiles("uploadStickerFile", files, params)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp struct {
-		Result File
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, wrapError(err)
-	}
-	return &resp.Result, nil
-}
-
-// GetStickerSet returns a StickerSet on success.
-//
-// NOTE: Deprecated and will be changed in future releases.
-func (b *Bot) GetStickerSet(name string) (*StickerSet, error) {
-	data, err := b.Raw("getStickerSet", map[string]string{"name": name})
-	if err != nil {
-		return nil, err
-	}
-
-	var resp struct {
-		Result *StickerSet
-	}
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, wrapError(err)
-	}
-	return resp.Result, nil
-}
-
-// CreateNewStickerSet creates a new sticker set.
-//
-// NOTE: Deprecated and will be changed in future releases.
-func (b *Bot) CreateNewStickerSet(sp StickerSetParams, masked bool, mp MaskPosition) error {
-	files := map[string]File{
-		"png_sticker": *sp.PngSticker,
-	}
-	params := map[string]string{
-		"user_id": strconv.Itoa(sp.UserID),
-		"name":    sp.Name,
-		"title":   sp.Title,
-		"emojis":  sp.Emojis,
-	}
-
-	if masked {
-		data, err := json.Marshal(&mp)
-		if err != nil {
-			return err
-		}
-		params["mask_position"] = string(data)
-	}
-
-	data, err := b.sendFiles("createNewStickerSet", files, params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
-}
-
-// AddStickerToSet adds new sticker to existing sticker set.
-//
-// NOTE: Deprecated and will be changed in future releases.
-func (b *Bot) AddStickerToSet(sp StickerSetParams, mp MaskPosition) error {
-	files := map[string]File{
-		"png_sticker": *sp.PngSticker,
-	}
-	params := map[string]string{
-		"user_id": strconv.Itoa(sp.UserID),
-		"name":    sp.Name,
-		"title":   sp.Title,
-		"emojis":  sp.Emojis,
-	}
-
-	if mp != (MaskPosition{}) {
-		data, err := json.Marshal(&mp)
-		if err != nil {
-			return err
-		}
-		params["mask_position"] = string(data)
-	}
-
-	data, err := b.sendFiles("addStickerToSet", files, params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
-}
-
-// SetStickerPositionInSet moves a sticker in set to a specific position.
-func (b *Bot) SetStickerPositionInSet(sticker string, position int) error {
-	params := map[string]string{
-		"sticker":  sticker,
-		"position": strconv.Itoa(position),
-	}
-
-	data, err := b.Raw("setStickerPositionInSet", params)
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
-}
-
-// DeleteStickerFromSet deletes sticker from set created by the bot.
-func (b *Bot) DeleteStickerFromSet(sticker string) error {
-	data, err := b.Raw("deleteStickerFromSet", map[string]string{"sticker": sticker})
-	if err != nil {
-		return err
-	}
-
-	return extractOk(data)
-}
-
 // GetCommands returns the current list of the bot's commands.
 func (b *Bot) GetCommands() ([]Command, error) {
 	data, err := b.Raw("getMyCommands", nil)
@@ -1556,10 +1379,10 @@ func (b *Bot) SetCommands(cmds []Command) error {
 		"commands": string(data),
 	}
 
-	data, err := b.Raw("setMyCommands", params)
-	if err != nil {
-		return err
-	}
+	_, err := b.Raw("setMyCommands", params)
+	return err
+}
 
-	return extractOk(data)
+func (b *Bot) NewMarkup() *ReplyMarkup {
+	return &ReplyMarkup{}
 }

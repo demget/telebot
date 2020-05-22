@@ -293,19 +293,41 @@ func (v *Venue) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	return extractMessage(data)
 }
 
-// Send delivers media through bot b to recipient.
+// Send delivers invoice through bot b to recipient.
 func (i *Invoice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
-	prices, _ := json.Marshal(i.Prices)
-
 	params := map[string]string{
-		"chat_id":         to.Recipient(),
-		"title":           i.Title,
-		"description":     i.Description,
-		"start_parameter": i.Start,
-		"payload":         i.Payload,
-		"provider_token":  i.Token,
-		"currency":        i.Currency,
-		"prices":          string(prices),
+		"chat_id":                       to.Recipient(),
+		"title":                         i.Title,
+		"description":                   i.Description,
+		"start_parameter":               i.Start,
+		"payload":                       i.Payload,
+		"provider_token":                i.Token,
+		"currency":                      i.Currency,
+		"need_name":                     strconv.FormatBool(i.NeedName),
+		"need_phone_number":             strconv.FormatBool(i.NeedPhoneNumber),
+		"need_email":                    strconv.FormatBool(i.NeedEmail),
+		"need_shipping_address":         strconv.FormatBool(i.NeedShippingAddress),
+		"send_phone_number_to_provider": strconv.FormatBool(i.SendPhoneNumber),
+		"send_email_to_provider":        strconv.FormatBool(i.SendEmail),
+		"is_flexible":                   strconv.FormatBool(i.Flexible),
+	}
+	if i.Photo != nil {
+		if i.Photo.FileURL != "" {
+			params["photo_url"] = i.Photo.FileURL
+		}
+		if i.PhotoSize > 0 {
+			params["photo_size"] = strconv.Itoa(i.PhotoSize)
+		}
+		if i.Photo.Width > 0 {
+			params["photo_width"] = strconv.Itoa(i.Photo.Width)
+		}
+		if i.Photo.Height > 0 {
+			params["photo_height"] = strconv.Itoa(i.Photo.Height)
+		}
+	}
+	if len(i.Prices) > 0 {
+		data, _ := json.Marshal(i.Prices)
+		params["prices"] = string(data)
 	}
 	embedSendOptions(params, opt)
 
@@ -354,7 +376,7 @@ func (p *Poll) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	return extractMessage(data)
 }
 
-// Send delivers dice through bot b to recipient
+// Send delivers dice through bot b to recipient.
 func (d *Dice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	params := map[string]string{
 		"chat_id": to.Recipient(),
@@ -363,6 +385,22 @@ func (d *Dice) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
 	embedSendOptions(params, opt)
 
 	data, err := b.Raw("sendDice", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractMessage(data)
+}
+
+// Send delivers game through bot b to recipient.
+func (g *Game) Send(b *Bot, to Recipient, opt *SendOptions) (*Message, error) {
+	params := map[string]string{
+		"chat_id":         to.Recipient(),
+		"game_short_name": g.Title,
+	}
+	embedSendOptions(params, opt)
+
+	data, err := b.Raw("sendGame", params)
 	if err != nil {
 		return nil, err
 	}

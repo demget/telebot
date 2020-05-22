@@ -69,6 +69,10 @@ type Settings struct {
 	// Poller is the provider of Updates.
 	Poller Poller
 
+	// Synchronous prevents handlers from running in parallel.
+	// It makes ProcessUpdate return after the handler is finished.
+	Synchronous bool
+
 	// Reporter is a callback function that will get called
 	// on any panics recovered from endpoint handlers.
 	Reporter func(error)
@@ -81,6 +85,9 @@ type Settings struct {
 
 	// You should specify Content's fields in your json config file.
 	Content *Content
+
+	// offline allows to create a bot without network for testing purposes.
+	offline bool
 }
 
 func (pref *Settings) UnmarshalJSON(data []byte) error {
