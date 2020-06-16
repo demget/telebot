@@ -63,6 +63,7 @@ func TestNewBot(t *testing.T) {
 	pref.Client = client
 	pref.Poller = &LongPoller{Timeout: time.Second}
 	pref.Updates = 50
+	pref.ParseMode = ModeHTML
 	pref.offline = true
 
 	b, err = NewBot(pref)
@@ -71,6 +72,7 @@ func TestNewBot(t *testing.T) {
 	assert.Equal(t, pref.URL, b.URL)
 	assert.Equal(t, pref.Poller, b.Poller)
 	assert.Equal(t, 50, cap(b.Updates))
+	assert.Equal(t, ModeHTML, b.parseMode)
 }
 
 func TestBotHandle(t *testing.T) {
@@ -309,23 +311,53 @@ func TestBot(t *testing.T) {
 	_, err = b.Forward(nil, nil)
 	assert.Equal(t, ErrBadRecipient, err)
 
-	t.Run("Send(what=Sendable)", func(t *testing.T) {
-		photo := &Photo{
-			File:    File{FileID: photoID},
-			Caption: t.Name(),
-		}
+	photo := &Photo{
+		File:    File{FileID: photoID},
+		Caption: t.Name(),
+	}
+	var msg *Message
 
-		msg, err := b.Send(to, photo)
+	t.Run("Send(what=Sendable)", func(t *testing.T) {
+		msg, err = b.Send(to, photo)
 		assert.NoError(t, err)
 		assert.NotNil(t, msg.Photo)
 		assert.Equal(t, photo.Caption, msg.Caption)
-
-		msg, err = b.EditCaption(msg, "new caption")
-		assert.NoError(t, err)
-		assert.Equal(t, "new caption", msg.Caption)
 	})
 
-	var msg *Message
+	t.Run("SendAlbum()", func(t *testing.T) {
+		_, err = b.SendAlbum(nil, nil)
+		assert.Equal(t, ErrBadRecipient, err)
+
+		_, err = b.SendAlbum(to, nil)
+		assert.Error(t, err)
+
+		msgs, err := b.SendAlbum(to, Album{photo, photo})
+		assert.NoError(t, err)
+		assert.Len(t, msgs, 2)
+		assert.NotEmpty(t, msgs[0].AlbumID)
+	})
+
+	t.Run("EditCaption()+ParseMode", func(t *testing.T) {
+		b.parseMode = ModeHTML
+
+		edited, err := b.EditCaption(msg, "<b>new caption with html</b>")
+		assert.NoError(t, err)
+		assert.Equal(t, "new caption with html", edited.Caption)
+		assert.Equal(t, EntityBold, edited.CaptionEntities[0].Type)
+
+		edited, err = b.EditCaption(msg, "*new caption with markdown*", ModeMarkdown)
+		assert.NoError(t, err)
+		assert.Equal(t, "new caption with markdown", edited.Caption)
+		assert.Equal(t, EntityBold, edited.CaptionEntities[0].Type)
+
+		b.parseMode = ModeDefault
+	})
+
+	t.Run("Edit(what=InputMedia)", func(t *testing.T) {
+		edited, err := b.Edit(msg, photo)
+		assert.NoError(t, err)
+		assert.Equal(t, edited.Photo.UniqueID, photo.UniqueID)
+	})
 
 	t.Run("Send(what=string)", func(t *testing.T) {
 		msg, err = b.Send(to, t.Name())
@@ -358,20 +390,8 @@ func TestBot(t *testing.T) {
 		assert.Error(t, err) // message is not modified
 	})
 
-	t.Run("Edit(what=Location)", func(t *testing.T) {
-		loc := &Location{Lat: 42, Lng: 69, LivePeriod: 60}
-		msg, err := b.Send(to, loc)
-		assert.NoError(t, err)
-		assert.NotNil(t, msg.Location)
-
-		loc = &Location{Lat: loc.Lng, Lng: loc.Lat}
-		msg, err = b.Edit(msg, *loc)
-		assert.NoError(t, err)
-		assert.NotNil(t, msg.Location)
-	})
-
-	t.Run("EditReplyMarkup()", func(t *testing.T) {
-		markup := &ReplyMarkup{
+	t.Run("Edit(what=ReplyMarkup)", func(t *testing.T) {
+		good := &ReplyMarkup{
 			InlineKeyboard: [][]InlineButton{
 				{{
 					Data: "btn",
@@ -379,7 +399,7 @@ func TestBot(t *testing.T) {
 				}},
 			},
 		}
-		badMarkup := &ReplyMarkup{
+		bad := &ReplyMarkup{
 			InlineKeyboard: [][]InlineButton{
 				{{
 					Data: strings.Repeat("*", 65),
@@ -388,21 +408,28 @@ func TestBot(t *testing.T) {
 			},
 		}
 
-		msg, err := b.EditReplyMarkup(msg, markup)
+		edited, err := b.Edit(msg, good)
 		assert.NoError(t, err)
-		assert.Equal(t, msg.ReplyMarkup.InlineKeyboard, markup.InlineKeyboard)
+		assert.Equal(t, edited.ReplyMarkup.InlineKeyboard, good.InlineKeyboard)
 
-		msg, err = b.EditReplyMarkup(msg, nil)
+		edited, err = b.EditReplyMarkup(edited, nil)
 		assert.NoError(t, err)
-		assert.Nil(t, msg.ReplyMarkup.InlineKeyboard)
+		assert.Nil(t, edited.ReplyMarkup.InlineKeyboard)
 
-		_, err = b.EditReplyMarkup(msg, badMarkup)
+		_, err = b.Edit(edited, bad)
 		assert.Equal(t, ErrButtonDataInvalid, err)
 	})
 
-	t.Run("Notify()", func(t *testing.T) {
-		assert.Equal(t, ErrBadRecipient, b.Notify(nil, Typing))
-		assert.NoError(t, b.Notify(to, Typing))
+	t.Run("Edit(what=Location)", func(t *testing.T) {
+		loc := &Location{Lat: 42, Lng: 69, LivePeriod: 60}
+		edited, err := b.Send(to, loc)
+		assert.NoError(t, err)
+		assert.NotNil(t, edited.Location)
+
+		loc = &Location{Lat: loc.Lng, Lng: loc.Lat}
+		edited, err = b.Edit(edited, *loc)
+		assert.NoError(t, err)
+		assert.NotNil(t, edited.Location)
 	})
 
 	// should be the last
@@ -410,16 +437,19 @@ func TestBot(t *testing.T) {
 		assert.NoError(t, b.Delete(msg))
 	})
 
-	t.Run("Commands", func(t *testing.T) {
-		orig := []Command{{
-			Text:        "test",
-			Description: "test command",
-		}}
-		assert.NoError(t, b.SetCommands(orig))
+	t.Run("Notify()", func(t *testing.T) {
+		assert.Equal(t, ErrBadRecipient, b.Notify(nil, Typing))
+		assert.NoError(t, b.Notify(to, Typing))
+	})
 
-		cmds, err := b.GetCommands()
-		assert.NoError(t, err)
-		assert.Equal(t, orig, cmds)
+	t.Run("Answer()", func(t *testing.T) {
+		assert.Error(t, b.Answer(&Query{}, &QueryResponse{
+			Results: Results{&ArticleResult{}},
+		}))
+	})
+
+	t.Run("Respond()", func(t *testing.T) {
+		assert.Error(t, b.Respond(&Callback{}, &CallbackResponse{}))
 	})
 
 	t.Run("Payments", func(t *testing.T) {
@@ -433,5 +463,17 @@ func TestBot(t *testing.T) {
 			b.Ship(&ShippingQuery{}, ShippingOption{}, ShippingOption{})
 			assert.Equal(t, ErrUnsupportedWhat, b.Ship(&ShippingQuery{}, 0))
 		})
+	})
+
+	t.Run("Commands", func(t *testing.T) {
+		orig := []Command{{
+			Text:        "test",
+			Description: "test command",
+		}}
+		assert.NoError(t, b.SetCommands(orig))
+
+		cmds, err := b.GetCommands()
+		assert.NoError(t, err)
+		assert.Equal(t, orig, cmds)
 	})
 }

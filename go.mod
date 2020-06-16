@@ -1,6 +1,6 @@
 module github.com/demget/telebot
 
-go 1.11
+go 1.12
 
 require (
 	github.com/aymerick/raymond v2.0.2+incompatible

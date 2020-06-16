@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 
 	resp, err := b.client.Post(url, "application/json", &buf)
 	if err != nil {
-		return nil, errors.Wrap(err, "http.Post failed")
+		return nil, wrapError(err)
 	}
 	resp.Close = true
 	defer resp.Body.Close()
@@ -36,6 +37,23 @@ func (b *Bot) Raw(method string, payload interface{}) ([]byte, error) {
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, wrapError(err)
+	}
+
+	if b.verbose {
+		body, _ := json.Marshal(payload)
+		body = bytes.ReplaceAll(body, []byte(`\"`), []byte(`"`))
+		body = bytes.ReplaceAll(body, []byte(`"{`), []byte(`{`))
+		body = bytes.ReplaceAll(body, []byte(`}"`), []byte(`}`))
+
+		indent := func(b []byte) string {
+			buf.Reset()
+			json.Indent(&buf, b, "", "\t")
+			return buf.String()
+		}
+
+		log.Printf("[verbose] telebot: sent request\n"+
+			"Method: %v\nParams: %v\nResponse: %v",
+			method, indent(body), indent(data))
 	}
 
 	// returning data as well
@@ -63,26 +81,32 @@ func (b *Bot) sendFiles(method string, files map[string]File, params map[string]
 		return b.Raw(method, params)
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
+	pipeReader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+	go func() {
+		defer pipeWriter.Close()
 
-	for field, file := range rawFiles {
-		if err := addFileToWriter(writer, params["file_name"], field, file); err != nil {
-			return nil, wrapError(err)
+		for field, file := range rawFiles {
+			if err := addFileToWriter(writer, params["file_name"], field, file); err != nil {
+				pipeWriter.CloseWithError(wrapError(err))
+				return
+			}
 		}
-	}
-	for field, value := range params {
-		if err := writer.WriteField(field, value); err != nil {
-			return nil, wrapError(err)
+		for field, value := range params {
+			if err := writer.WriteField(field, value); err != nil {
+				pipeWriter.CloseWithError(wrapError(err))
+				return
+			}
 		}
-	}
-	if err := writer.Close(); err != nil {
-		return nil, wrapError(err)
-	}
+		if err := writer.Close(); err != nil {
+			pipeWriter.CloseWithError(wrapError(err))
+			return
+		}
+	}()
 
 	url := b.URL + "/bot" + b.Token + "/" + method
 
-	resp, err := b.client.Post(url, writer.FormDataContentType(), &buf)
+	resp, err := b.client.Post(url, writer.FormDataContentType(), pipeReader)
 	if err != nil {
 		return nil, wrapError(err)
 	}
@@ -130,7 +154,7 @@ func (b *Bot) sendText(to Recipient, text string, opt *SendOptions) (*Message, e
 		"chat_id": to.Recipient(),
 		"text":    text,
 	}
-	embedSendOptions(params, opt)
+	b.embedSendOptions(params, opt)
 
 	data, err := b.Raw("sendMessage", params)
 	if err != nil {

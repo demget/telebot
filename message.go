@@ -27,6 +27,17 @@ type Message struct {
 	// forwarded from a channel.
 	OriginalChat *Chat `json:"forward_from_chat"`
 
+	// For forwarded messages, identifier of the original message
+	// when forwarded from a channel.
+	OriginalMessageID int `json:"forward_from_message_id"`
+
+	// For forwarded messages, signature of the post author.
+	OriginalSignature string `json:"forward_signature"`
+
+	// For forwarded messages, sender's name from users who
+	// disallow adding a link to their account.
+	OriginalSenderName string `json:"forward_sender_name"`
+
 	// For forwarded messages, unixtime of the original message.
 	OriginalUnixtime int `json:"forward_date"`
 
@@ -36,6 +47,9 @@ type Message struct {
 	// contain further ReplyTo fields even if it
 	// itself is a reply.
 	ReplyTo *Message `json:"reply_to_message"`
+
+	// Shows through which bot the message was sent.
+	Via *User `json:"via_bot"`
 
 	// (Optional) Time of last edit in Unix
 	LastEdit int64 `json:"edit_date"`
@@ -69,7 +83,7 @@ type Message struct {
 	// For an audio recording, information about it.
 	Audio *Audio `json:"audio"`
 
-	// For a gneral file, information about it.
+	// For a general file, information about it.
 	Document *Document `json:"document"`
 
 	// For a photo, all available sizes (thumbnails).
@@ -153,7 +167,7 @@ type Message struct {
 	// Sender would lead to creator of the chat.
 	GroupCreated bool `json:"group_chat_created"`
 
-	// For a service message, true if super group has been created.
+	// For a service message, true if supergroup has been created.
 	//
 	// You would receive such a message if you are one of
 	// initial group chat members.
@@ -169,11 +183,11 @@ type Message struct {
 	// Sender would lead to creator of the chat.
 	ChannelCreated bool `json:"channel_chat_created"`
 
-	// For a service message, the destination (super group) you
+	// For a service message, the destination (supergroup) you
 	// migrated to.
 	//
 	// You would receive such a message when your chat has migrated
-	// to a super group.
+	// to a supergroup.
 	//
 	// Sender would lead to creator of the migration.
 	MigrateTo int64 `json:"migrate_to_chat_id"`
@@ -182,7 +196,7 @@ type Message struct {
 	// from.
 	//
 	// You would receive such a message when your chat has migrated
-	// to a super group.
+	// to a supergroup.
 	//
 	// Sender would lead to creator of the migration.
 	MigrateFrom int64 `json:"migrate_from_chat_id"`
@@ -263,8 +277,7 @@ func (m *Message) Private() bool {
 	return m.Chat.Type == ChatPrivate
 }
 
-// FromGroup returns true, if message came from a group OR
-// a super group.
+// FromGroup returns true, if message came from a group OR a supergroup.
 func (m *Message) FromGroup() bool {
 	return m.Chat.Type == ChatGroup || m.Chat.Type == ChatSuperGroup
 }

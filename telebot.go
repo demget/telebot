@@ -34,7 +34,7 @@ var (
 	ErrBadRecipient    = errors.New("telebot: recipient is nil")
 	ErrUnsupportedWhat = errors.New("telebot: unsupported what argument")
 	ErrCouldNotUpdate  = errors.New("telebot: could not fetch new updates")
-	ErrNoGameMessage   = errors.New("telebot: no game message")
+	ErrTrueResult      = errors.New("telebot: result is True")
 )
 
 const DefaultApiURL = "https://api.telegram.org"
@@ -78,7 +78,7 @@ const (
 	OnGroupPhotoDeleted = "\achat_photo_del"
 
 	// Migration happens when group switches to
-	// a super group. You might want to update
+	// a supergroup. You might want to update
 	// your internal references to this chat
 	// upon switching as its ID will change.
 	//
@@ -218,4 +218,5 @@ type DiceType string
 var (
 	Cube = &Dice{Type: "🎲"}
 	Dart = &Dice{Type: "🎯"}
+	Ball = &Dice{Type: "🏀"}
 )

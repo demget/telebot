@@ -73,6 +73,15 @@ type Settings struct {
 	// It makes ProcessUpdate return after the handler is finished.
 	Synchronous bool
 
+	// Verbose forces bot to log all upcoming requests.
+	// Use for debugging purposes only.
+	Verbose bool
+
+	// ParseMode used to set default parse mode of all sent messages.
+	// It attaches to every send, edit or whatever method. You also
+	// will be able to override the default mode by passing a new one.
+	ParseMode ParseMode
+
 	// Reporter is a callback function that will get called
 	// on any panics recovered from endpoint handlers.
 	Reporter func(error)
