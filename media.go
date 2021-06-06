@@ -65,7 +65,9 @@ func (p *Photo) UnmarshalJSON(jsonStr []byte) error {
 			return err
 		}
 
-		hq = sizes[len(sizes)-1]
+		if len(sizes) > 0 {
+			hq = sizes[len(sizes)-1]
+		}
 	}
 
 	p.File = hq.File
